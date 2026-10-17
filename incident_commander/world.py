@@ -6,14 +6,21 @@ import math
 import statistics
 from collections.abc import Mapping
 
-from .config import RECENT_WINDOW_S, SAMPLE_INTERVAL_S, TOOL_SPECS
+from .config import ACTION_PROPERTIES, RECENT_WINDOW_S, SAMPLE_INTERVAL_S, TOOL_SPECS
 from .fixtures.alerts import ALERTS
-from .fixtures.services import SERVICES, ServiceSpec, make_logs
+from .fixtures.services import (
+    REMEDIATION_DELAY_S,
+    REMEDIATION_EFFECTS,
+    REMEDIATION_OUTCOMES,
+    SERVICES,
+    ServiceSpec,
+    make_logs,
+)
 from .types import Alert
 
 
 class SimWorld:
-    """Holds service fixtures and answers read queries. v0.1 has no write path.
+    """Holds service fixtures and answers read queries. The only write is `apply_remediation`.
 
     Data is never returned beyond `until` (the tool's `as_of`): a query for the
     future gets only what has been produced so far.
@@ -29,6 +36,7 @@ class SimWorld:
         self._alerts = dict(alerts)
         self._tool_lags = dict(tool_lags or {})
         self._logs = {name: make_logs(s.anchor) for name, s in self._services.items()}
+        self._latency_overrides: dict[str, tuple[float, float]] = {}  # service -> (from_t, ms)
 
     def alert(self, alert_id: str) -> Alert:
         return self._alerts[alert_id]
@@ -50,7 +58,11 @@ class SimWorld:
 
     def latency_points(self, service: str, start: float, end: float, until: float):
         svc = self._service(service)
-        return tuple((float(t), svc.latency(t)) for t in self._grid(start, min(end, until)))
+        override = self._latency_overrides.get(service)
+        return tuple(
+            (float(t), override[1] if override and t >= override[0] else svc.latency(t))
+            for t in self._grid(start, min(end, until))
+        )
 
     def error_points(self, service: str, start: float, end: float, until: float):
         svc = self._service(service)
@@ -84,6 +96,22 @@ class SimWorld:
                 )
             )
         return tuple(rows)
+
+    def apply_remediation(
+        self, service: str, action: str, at: float, outcome: str = "success"
+    ) -> None:
+        """Change the service's latency from `at` + REMEDIATION_DELAY_S, per the fixture effects.
+
+        A known (service, action) pair with no listed effect leaves the signal unchanged.
+        """
+        self._service(service)  # KeyError for an unknown service
+        if action not in ACTION_PROPERTIES:
+            raise ValueError(f"unknown action: {action}")
+        if outcome not in REMEDIATION_OUTCOMES:
+            raise ValueError(f"unknown outcome: {outcome}")
+        effect = REMEDIATION_EFFECTS.get((service, action))
+        if effect is not None:
+            self._latency_overrides[service] = (at + REMEDIATION_DELAY_S, effect[outcome])
 
     def snapshot(self, start: float, end: float) -> tuple:
         """Everything readable over a window, for read-only tests."""

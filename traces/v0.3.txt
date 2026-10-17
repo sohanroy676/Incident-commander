@@ -1,0 +1,12 @@
+== M4 BLAST-RADIUS CLASSIFICATION ==
+DECISION classify alert=ALRT-9001 severity_label=high action=rollback_deployment tier=high requires_approval=True
+DECISION classify alert=ALRT-9002 severity_label=high action=restart_service tier=low requires_approval=False
+== M5 TIME-BOXED APPROVAL ==
+[t+0.00s] PAGE target=engineer-priya window_s=0.3
+DECISION page_check case=immediate window_s=0.3 escalated=False
+[t+0.00s] SLEEP real_seconds=0.4
+DECISION page_check case=after_sleep window_s=0.3 escalated=True from=engineer-priya to=engineer-devon
+DECISION page_check case=answered_in_time escalated=False reason="already resolved"
+== EXECUTION (idempotency demo) ==
+DECISION execute alert=ALRT-9002 action=restart_service status=executed execution_id=exec-e11ae95dee
+DECISION execute alert=ALRT-9002 action=restart_service status=already_executed execution_id=exec-e11ae95dee

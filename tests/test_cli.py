@@ -3,6 +3,7 @@
 import re
 import subprocess
 import sys
+import time
 import unittest
 
 from incident_commander.fixtures.alerts import ALERTS
@@ -121,6 +122,75 @@ class TestInvestigateCommand(unittest.TestCase):
         self.assertEqual(p.returncode, 2)
         self.assertEqual(p.stdout, "")
         self.assertIn("unknown alert: ALRT-0000", p.stderr)
+
+
+GATES_DECISIONS = [
+    (
+        "DECISION classify alert=ALRT-9001 severity_label=high action=rollback_deployment "
+        "tier=high requires_approval=True"
+    ),
+    (
+        "DECISION classify alert=ALRT-9002 severity_label=high action=restart_service "
+        "tier=low requires_approval=False"
+    ),
+    "DECISION page_check case=immediate window_s=0.3 escalated=False",
+    (
+        "DECISION page_check case=after_sleep window_s=0.3 escalated=True "
+        "from=engineer-priya to=engineer-devon"
+    ),
+    'DECISION page_check case=answered_in_time escalated=False reason="already resolved"',
+]
+
+
+class TestGatesCommand(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        t0 = time.monotonic()
+        cls.p = run("gates")
+        cls.elapsed = time.monotonic() - t0
+        cls.out = cls.p.stdout.splitlines()
+
+    def test_succeeds_and_really_sleeps(self):
+        self.assertEqual(self.p.returncode, 0, self.p.stderr)
+        self.assertGreaterEqual(self.elapsed, 0.4)
+
+    def test_headers_in_order(self):
+        headers = [line for line in self.out if line.startswith("==")]
+        self.assertEqual(
+            headers,
+            [
+                "== M4 BLAST-RADIUS CLASSIFICATION ==",
+                "== M5 TIME-BOXED APPROVAL ==",
+                "== EXECUTION (idempotency demo) ==",
+            ],
+        )
+
+    def test_decision_lines_match_the_roadmap(self):
+        decisions = [
+            line for line in self.out if line.startswith("DECISION") and "execute" not in line
+        ]
+        self.assertEqual(decisions, GATES_DECISIONS)
+
+    def test_trace_lines(self):
+        self.assertRegex(
+            self.out[4], r"^\[t\+\d+\.\d\ds\] PAGE target=engineer-priya window_s=0.3$"
+        )
+        self.assertTrue(any(re.search(r"SLEEP real_seconds=0\.4$", line) for line in self.out))
+
+    def test_execute_then_retry_share_one_id(self):
+        ex = [line for line in self.out if line.startswith("DECISION execute")]
+        pattern = (
+            r"^DECISION execute alert=ALRT-9002 action=restart_service status=%s "
+            r"execution_id=(exec-[0-9a-f]{10})$"
+        )
+        first = re.match(pattern % "executed", ex[0])
+        retry = re.match(pattern % "already_executed", ex[1])
+        self.assertTrue(first and retry, ex)
+        self.assertEqual(first.group(1), retry.group(1))
+        self.assertEqual(len(ex), 2)
+
+    def test_reproducible_apart_from_real_timestamps(self):
+        self.assertEqual(strip_timestamps(self.p.stdout), strip_timestamps(run("gates").stdout))
 
 
 class TestLineHelpers(unittest.TestCase):

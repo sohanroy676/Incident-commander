@@ -70,6 +70,15 @@ def make_logs(anchor: float) -> tuple[tuple[float, str], ...]:
     )
 
 
+# Remediation effects (PHASE5 8): (service, action) -> latency level in ms per outcome,
+# reached REMEDIATION_DELAY_S after the action runs.
+REMEDIATION_DELAY_S = 60
+REMEDIATION_EFFECTS: dict[tuple[str, str], dict[str, float]] = {
+    ("inventory-service", "restart_service"): {"success": 195.0, "fix_fails": 3900.0},
+    ("checkout-service", "rollback_deployment"): {"success": 182.0, "fix_fails": 3900.0},
+}
+REMEDIATION_OUTCOMES = ("success", "fix_fails")
+
 _A1 = ALERTS["ALRT-9001"].fired_at
 _A2 = ALERTS["ALRT-9002"].fired_at
 _A3 = ALERTS["ALRT-9003"].fired_at
