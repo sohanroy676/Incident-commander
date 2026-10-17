@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import statistics
-
-from .config import RECENT_WINDOW_S
+from .predicates import recent_median
 from .types import Alert, Observation
 
 M1_TITLE = "SIGNAL INGESTION"
@@ -34,20 +32,15 @@ def decision(kind: str, **fields: object) -> str:
     return f"DECISION {kind} {kv(**fields)}"
 
 
-def _recent_median(obs: Observation) -> float | None:
-    values = [v for t, v in obs.data if t > obs.end - RECENT_WINDOW_S]
-    return statistics.median(values) if values else None
-
-
 def summarize(obs: Observation) -> str:
     """One-line M1 summary of an observation. Log content is never shown (untrusted)."""
     if obs.status != "ok":
         return f"error={fmt(obs.error or 'unknown')}"
     if obs.tool == "get_latency":
-        med = _recent_median(obs)
+        med = recent_median(obs.data, obs.end)
         return kv(median_5m_ms=med, baseline_ms=obs.baseline)
     if obs.tool == "get_error_rate":
-        med = _recent_median(obs)
+        med = recent_median(obs.data, obs.end)
         ratio = round(med / obs.baseline, 2) if med is not None and obs.baseline else None
         return kv(
             median_5m=f"{med:.3f}" if med is not None else None,
