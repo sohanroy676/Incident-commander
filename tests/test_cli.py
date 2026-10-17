@@ -6,7 +6,7 @@ import sys
 import unittest
 
 from incident_commander.fixtures.alerts import ALERTS
-from incident_commander.report import decision, fmt, header
+from incident_commander.report import decision, fmt, header, trace_line
 
 
 def run(*args: str) -> subprocess.CompletedProcess:
@@ -69,6 +69,60 @@ class TestToolsCommand(unittest.TestCase):
         self.assertNotEqual(run().returncode, 0)
 
 
+DECISIONS = {
+    "ALRT-9001": "DECISION verdict alert=ALRT-9001 verdict=matched runbook=RB-101 rounds=3",
+    "ALRT-9002": "DECISION verdict alert=ALRT-9002 verdict=matched runbook=RB-102 rounds=3",
+    "ALRT-9003": "DECISION verdict alert=ALRT-9003 verdict=no_confident_match "
+    "runbook=none rounds=4 reason=all_refuted",
+}
+
+
+def strip_timestamps(text: str) -> str:
+    return re.sub(r"\[t\+\d+\.\d\ds\]", "[t]", text)
+
+
+class TestInvestigateCommand(unittest.TestCase):
+    def test_decision_lines_match_the_roadmap(self):
+        for alert_id, expected in DECISIONS.items():
+            p = run("investigate", alert_id)
+            self.assertEqual(p.returncode, 0, p.stderr)
+            self.assertEqual(p.stdout.splitlines()[-1], expected)
+
+    def test_header_and_stub_declaration(self):
+        out = run("investigate", "ALRT-9001").stdout.splitlines()
+        self.assertEqual(out[0], "== M3 INVESTIGATION ==")
+        self.assertTrue(
+            out[1].startswith("alert=ALRT-9001 ranker=STUB order=RB-102,RB-101,RB-104,RB-103")
+        )
+
+    def test_9001_round_lines(self):
+        out = run("investigate", "ALRT-9001").stdout.splitlines()
+        rounds = [line.split("] ", 1)[1] for line in out if "ROUND" in line]
+        self.assertEqual(
+            [r.split()[2] for r in rounds],
+            ["tool=get_latency", "tool=get_error_rate", "tool=get_deployments"],
+        )
+        self.assertIn("mode=exploratory", run("investigate", "ALRT-9003").stdout)
+
+    def test_logs_and_log_text_never_appear(self):
+        for alert_id in DECISIONS:
+            out = run("investigate", alert_id).stdout
+            self.assertNotIn("get_logs", out)
+            self.assertNotIn("[INFO]", out)
+
+    def test_output_is_reproducible_apart_from_real_timestamps(self):
+        self.assertEqual(
+            strip_timestamps(run("investigate", "ALRT-9002").stdout),
+            strip_timestamps(run("investigate", "ALRT-9002").stdout),
+        )
+
+    def test_unknown_alert_exits_nonzero_with_message_on_stderr(self):
+        p = run("investigate", "ALRT-0000")
+        self.assertEqual(p.returncode, 2)
+        self.assertEqual(p.stdout, "")
+        self.assertIn("unknown alert: ALRT-0000", p.stderr)
+
+
 class TestLineHelpers(unittest.TestCase):
     def test_header(self):
         self.assertEqual(header(3, "INVESTIGATION"), "== M3 INVESTIGATION ==")
@@ -79,6 +133,12 @@ class TestLineHelpers(unittest.TestCase):
         self.assertEqual(fmt("already resolved"), '"already resolved"')
         self.assertEqual(fmt(1760000100.0), "1760000100")
         self.assertEqual(fmt(0.3), "0.3")
+
+    def test_trace_line(self):
+        self.assertEqual(
+            trace_line(0.0, "ROUND", n=1, fresh=True), "[t+0.00s] ROUND n=1 fresh=True"
+        )
+        self.assertEqual(trace_line(1.234, "DONE"), "[t+1.23s] DONE")
 
     def test_decision_line(self):
         self.assertEqual(

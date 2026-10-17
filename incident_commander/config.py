@@ -19,6 +19,9 @@ VERIFY_TOLERANCE = 1.10  # 195/180 = 1.083 passes, 3900/180 = 21.7 fails
 ROUND_BUDGET = 4  # equals the number of evidence tools
 APPROVAL_DEADLINE_S = 0.3  # per page, demo value
 
+# --- Stub ranker (v0.2-v0.4): deliberately wrong-first for ALRT-9001/9002, to show evidence overrides rank.
+STATIC_RANKER_ORDER = ("RB-102", "RB-101", "RB-104", "RB-103")
+
 # --- Simulated data and clocks (PHASE5 7.2, 8)
 SAMPLE_INTERVAL_S = 60  # series sampling step
 DATA_CLOCK_START_OFFSET_S = 5.0  # DataClock starts at fired_at + 5

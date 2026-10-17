@@ -14,6 +14,8 @@
 - Series are pure functions of absolute time; tools take `(world, clock, service, start, end)`, never an incident id.
 - A tool failure becomes `Observation(status="error")`, never an exception.
 - Output lines: `== M<n> TITLE ==`, `[t+..s] KIND k=v`, `DECISION kind k=v`; values via `report.fmt`.
+- Predicates return `Tri` (TRUE/FALSE/UNKNOWN) from numbers only; error/stale/ambiguous evidence is UNKNOWN, which never confirms or refutes.
+- Investigator tools come from a `ToolBox` of the four evidence tools; `get_logs` is never importable there.
 - Real output goes to `traces/vX.Y.txt` by redirecting commands, never hand-written.
 
 ## Things to avoid

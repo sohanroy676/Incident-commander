@@ -19,6 +19,7 @@ reason. The golden set is never used to tune a threshold (DETAILED_ROADMAP secti
 | `VERIFY_TOLERANCE` | 1.10 | 195/180 = 1.083 passes, 3900/180 = 21.7 fails |
 | `ROUND_BUDGET` | 4 | equals the number of evidence tools |
 | `APPROVAL_DEADLINE_S` | 0.3 | per page, demo value |
+| `STATIC_RANKER_ORDER` | RB-102, RB-101, RB-104, RB-103 | v0.2 stub order, deliberately wrong-first so evidence visibly overrides rank |
 
 ## Simulation parameters (v0.1)
 
@@ -42,3 +43,19 @@ reason. The golden set is never used to tune a threshold (DETAILED_ROADMAP secti
 - `get_dependencies` reads each dependency's last 5 minutes ending at `min(at, as_of)`: with a lagging
   source it uses the latest data produced so far instead of failing.
 - Golden-set services (`search`, `cart`, `auth`, `user-db`) are added with v0.6, not now.
+
+## Choices that go beyond PHASE5 (v0.2)
+
+- The verdict is also checked once after the loop ends, so a hypothesis confirmed by the last allowed
+  round (for example a stale answer refetched fresh at round 4) still counts. PHASE4 8.3's pseudo-code
+  only checks at the top of each iteration.
+- Two confirmed hypotheses end the loop at once with `ambiguous_match`; more evidence cannot un-confirm a TRUE predicate.
+- A stale answer is refetched once (its own round, `mode=refetch`) only if budget remains. A tool that
+  returned `status=error` is not refetched: a retry of the same call adds nothing the planner can use.
+- Latency/error predicates mirror each other: elevated is FALSE at or below the "normal" ratio and
+  UNKNOWN in the middle band (and normal is the reverse), so 1.99x gives UNKNOWN for both.
+- A constant (zero-variance) latency series is not a gradual trend (FALSE); fewer than 3 points is UNKNOWN.
+- `latency_step_change` requires every point before the biggest jump to stay within `LATENCY_NORMAL_RATIO` of baseline.
+- ROUND lines print the tool's predicates that appear in a hypothesis still alive at the start of the round
+  (all of them in exploratory mode); `RoundRecord.values` keeps every predicate for the tool.
+- Runbook `text` is a placeholder until v0.5; `follow_ups` is empty.

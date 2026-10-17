@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-import statistics
-
-from .config import RECENT_WINDOW_S
-from .types import Alert, Observation
+from .clocks import ControlClock
+from .predicates import recent_median
+from .types import Alert, Observation, Verdict
 
 M1_TITLE = "SIGNAL INGESTION"
+M3_TITLE = "INVESTIGATION"
 
 
 def header(n: int, title: str) -> str:
@@ -34,20 +34,15 @@ def decision(kind: str, **fields: object) -> str:
     return f"DECISION {kind} {kv(**fields)}"
 
 
-def _recent_median(obs: Observation) -> float | None:
-    values = [v for t, v in obs.data if t > obs.end - RECENT_WINDOW_S]
-    return statistics.median(values) if values else None
-
-
 def summarize(obs: Observation) -> str:
     """One-line M1 summary of an observation. Log content is never shown (untrusted)."""
     if obs.status != "ok":
         return f"error={fmt(obs.error or 'unknown')}"
     if obs.tool == "get_latency":
-        med = _recent_median(obs)
+        med = recent_median(obs.data, obs.end)
         return kv(median_5m_ms=med, baseline_ms=obs.baseline)
     if obs.tool == "get_error_rate":
-        med = _recent_median(obs)
+        med = recent_median(obs.data, obs.end)
         ratio = round(med / obs.baseline, 2) if med is not None and obs.baseline else None
         return kv(
             median_5m=f"{med:.3f}" if med is not None else None,
@@ -82,3 +77,32 @@ def m1_report(alert: Alert, observations: list[Observation]) -> str:
             f"{o.tool:<17}{o.age_s:<7.1f}{o.max_staleness_s:<17}{o.fresh!s:<6}{summarize(o)}"
         )
     return "\n".join(lines)
+
+
+def trace_line(elapsed_s: float, kind: str, **fields: object) -> str:
+    """`[t+0.00s] KIND k=v`: real elapsed seconds, then the event's fields."""
+    body = f" {kv(**fields)}" if fields else ""
+    return f"[t+{elapsed_s:.2f}s] {kind}{body}"
+
+
+class PrintTrace:
+    """Trace sink that prints each event with real seconds since it was created."""
+
+    def __init__(self, clock: ControlClock | None = None) -> None:
+        self._clock = clock or ControlClock()
+        self._start = self._clock.now()
+
+    def emit(self, kind: str, **fields: object) -> None:
+        print(trace_line(self._clock.now() - self._start, kind, **fields))
+
+
+def verdict_decision(alert_id: str, verdict: Verdict) -> str:
+    fields: dict[str, object] = {
+        "alert": alert_id,
+        "verdict": verdict.kind,
+        "runbook": verdict.runbook_id or "none",
+        "rounds": verdict.rounds,
+    }
+    if verdict.reason:
+        fields["reason"] = verdict.reason
+    return decision("verdict", **fields)

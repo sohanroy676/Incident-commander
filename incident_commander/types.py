@@ -3,6 +3,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from enum import Enum
+
+
+class Tri(Enum):
+    """Three-valued predicate result. UNKNOWN never confirms and never refutes."""
+
+    TRUE = "TRUE"
+    FALSE = "FALSE"
+    UNKNOWN = "UNKNOWN"
 
 
 @dataclass(frozen=True)
@@ -38,3 +47,29 @@ class Observation:
     fresh: bool
     error: str | None = None
     baseline: float | None = None  # latency_ms / error_rate baseline, where the tool has one
+
+
+@dataclass(frozen=True)
+class Runbook:
+    runbook_id: str
+    title: str
+    text: str  # retrieval input only; the Investigator tests `signature`
+    signature: tuple[str, ...]  # predicate ids, all must be TRUE
+    action: str
+    follow_ups: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class Candidate:
+    runbook_id: str
+    ranks: dict[str, int]
+    fused_score: float
+    rank: int
+
+
+@dataclass(frozen=True)
+class Verdict:
+    kind: str  # "matched" | "no_confident_match"
+    runbook_id: str | None
+    rounds: int
+    reason: str | None  # all_refuted | insufficient_evidence | ambiguous_match
