@@ -1,15 +1,22 @@
 # System Patterns
 
-<!-- Fill in as patterns emerge, so every session follows the same conventions instead of inventing new ones. -->
-
 ## Naming conventions
-(e.g. camelCase for variables, PascalCase for components/classes)
+- Modules, functions, variables: snake_case; classes: PascalCase; constants: UPPER_SNAKE in `config.py`.
+- Tools are `get_<signal>`; output helpers in `report.py` (`header`, `kv`, `decision`).
 
 ## Folder structure logic
-(e.g. "one folder per feature, containing component + test + styles")
+- One responsibility per module, layered per PHASE5 section 12 (types/config/clocks -> fixtures/world -> tools -> ...).
+- Tests mirror modules: `tests/test_<module>.py`; unittest only.
 
 ## Common patterns used in this project
-(e.g. "API calls go through a single `apiClient` wrapper, not raw fetch calls scattered around")
+- Frozen dataclasses for data crossing module boundaries (`types.py`).
+- Tunable numbers only in `config.py`, each documented in `docs/THRESHOLDS.md`.
+- Series are pure functions of absolute time; tools take `(world, clock, service, start, end)`, never an incident id.
+- A tool failure becomes `Observation(status="error")`, never an exception.
+- Output lines: `== M<n> TITLE ==`, `[t+..s] KIND k=v`, `DECISION kind k=v`; values via `report.fmt`.
+- Real output goes to `traces/vX.Y.txt` by redirecting commands, never hand-written.
 
 ## Things to avoid
-(e.g. "no class components, this project uses functional components only")
+- Importing anything outside stdlib + scikit-learn in `incident_commander/`; env vars; `ic_plus` references (G1 enforces).
+- Running `ruff format` over docs/ (excluded in `ruff.toml`).
+- Passing text (logs, summaries) into any decision function.
