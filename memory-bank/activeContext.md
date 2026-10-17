@@ -1,7 +1,7 @@
 # Active Context
 
 ## Current focus
-v0.2 Investigator is done: merged to main via PR #6, tag `v0.2` pushed, CI green. Starting v0.3 Gates next.
+v0.3 Gates is implemented and committed on branch `v0.3-gates` (not merged, pushed or tagged yet; awaiting user approval). v0.4 MVP-1 is next.
 
 ## Recent decisions
 - Specs came from docs/PHASE1-5.md (now committed). Deviations from PHASE5 are listed in docs/THRESHOLDS.md
@@ -19,9 +19,13 @@ v0.2 Investigator is done: merged to main via PR #6, tag `v0.2` pushed, CI green
 
 - Workflow preference (from the user, 2026-10-18): from v0.3 on, try branch -> commit -> merge locally without a PR when viable; still ask before pushing/merging/tagging.
 
+- v0.3 choices are in docs/THRESHOLDS.md ("Choices that go beyond PHASE5 (v0.3)"). `ControlClock.sleep` loops until
+  monotonic time has really advanced (Windows early return); `Page` takes an optional `escalate_to`; the gate polls
+  with `min(elapsed, deadline)` so a late tick cannot drop an in-time answer.
+- Gotcha: never call `SimWorld.latency_points` with start=0 in tests (builds ~29M grid points); use windows near `fired_at`.
+
 ## Blockers / open questions
 - Install git-cliff (or similar) to regenerate CHANGELOG.md? (none installed; CHANGELOG still empty)
 
 ## Next step
-v0.3 Gates (`v0.3-gates`): `blast_radius.classify_remediation(action)`, approval gate
-(real ControlClock deadline, escalation priya -> devon, ApprovalToken), idempotent executor, tests, `traces/v0.3.txt`.
+Get approval, then merge `v0.3-gates` locally (no PR), push main, wait for CI, tag `v0.3`. Then v0.4: verifier, postmortem, Commander state machine, `run --all`.
