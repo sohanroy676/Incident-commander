@@ -1,7 +1,7 @@
 # Active Context
 
 ## Current focus
-v0.3 Gates is implemented and committed on branch `v0.3-gates` (not merged, pushed or tagged yet; awaiting user approval). v0.4 MVP-1 is next.
+v0.3 Gates is done: merged to main locally (no PR), pushed, CI green, tag `v0.3`. Starting v0.4 MVP-1 next.
 
 ## Recent decisions
 - Specs came from docs/PHASE1-5.md (now committed). Deviations from PHASE5 are listed in docs/THRESHOLDS.md
@@ -28,4 +28,4 @@ v0.3 Gates is implemented and committed on branch `v0.3-gates` (not merged, push
 - Install git-cliff (or similar) to regenerate CHANGELOG.md? (none installed; CHANGELOG still empty)
 
 ## Next step
-Get approval, then merge `v0.3-gates` locally (no PR), push main, wait for CI, tag `v0.3`. Then v0.4: verifier, postmortem, Commander state machine, `run --all`.
+v0.4 (`v0.4-mvp1`): verifier, postmortem, Commander state machine, `run --all`.
