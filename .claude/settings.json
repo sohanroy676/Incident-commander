@@ -14,7 +14,9 @@
       "Read(./.env)",
       "Read(./.env.*)",
       "Read(./**/*.pem)",
-      "Read(./**/*.key)",
+      "Read(./**/*.key)"
+    ],
+    "ask": [
       "Bash(git push:*)"
     ]
   }
