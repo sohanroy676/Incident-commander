@@ -9,7 +9,7 @@ from .clocks import ControlClock
 from .types import ApprovalToken
 
 PENDING, ACKNOWLEDGED, ESCALATED = "PENDING", "ACKNOWLEDGED", "ESCALATED"
-APPROVE, DENY = "approve", "deny"
+APPROVE = "approve"
 
 
 class Responder(Protocol):

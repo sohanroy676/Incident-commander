@@ -4,10 +4,13 @@ from __future__ import annotations
 
 from .clocks import ControlClock
 from .predicates import recent_median
-from .types import Alert, Observation, Verdict
+from .types import Alert, Classification, Observation, Verdict
 
 M1_TITLE = "SIGNAL INGESTION"
 M3_TITLE = "INVESTIGATION"
+M4_TITLE = "BLAST-RADIUS CLASSIFICATION"
+M5_TITLE = "TIME-BOXED APPROVAL"
+EXECUTION_HEADER = "== EXECUTION (idempotency demo) =="
 
 
 def header(n: int, title: str) -> str:
@@ -106,3 +109,15 @@ def verdict_decision(alert_id: str, verdict: Verdict) -> str:
     if verdict.reason:
         fields["reason"] = verdict.reason
     return decision("verdict", **fields)
+
+
+def classify_decision(alert: Alert, c: Classification) -> str:
+    """`severity_label` is display only: it is read from the alert, never given to the classifier."""
+    return decision(
+        "classify",
+        alert=alert.alert_id,
+        severity_label=alert.severity,
+        action=c.action,
+        tier=c.tier,
+        requires_approval=c.requires_approval,
+    )
