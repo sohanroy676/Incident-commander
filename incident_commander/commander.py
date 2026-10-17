@@ -183,6 +183,7 @@ class Commander:
         case.candidates = self._ranker.rank(alert.summary)
         trace.emit(
             "RANK",
+            alert=alert.alert_id,
             ranker=self._ranker.label,
             order=",".join(c.runbook_id for c in case.candidates),
         )

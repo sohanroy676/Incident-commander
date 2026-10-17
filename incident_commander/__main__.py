@@ -1,4 +1,4 @@
-"""CLI: python -m incident_commander tools|investigate <ALERT>|gates (more arrive per version)."""
+"""CLI: python -m incident_commander tools|investigate <ALERT>|gates|run <ALERT>|--all."""
 
 from __future__ import annotations
 
@@ -8,11 +8,13 @@ import sys
 from .approval import ApprovalGate, ScriptedResponder
 from .blast_radius import classify_remediation
 from .clocks import ControlClock, DataClock
+from .commander import Case, Commander
 from .config import (
     APPROVAL_DEADLINE_S,
     APPROVAL_DEMO_SLEEP_S,
     APPROVAL_TICK_S,
     DATA_CLOCK_START_OFFSET_S,
+    DEMO_SECONDARY_DELAY_S,
     LOOKBACK_S,
     PRIMARY_ONCALL,
     SECONDARY_ONCALL,
@@ -21,18 +23,31 @@ from .config import (
 from .executor import Executor
 from .fixtures.runbooks import RUNBOOKS
 from .investigator import ToolBox, investigate
+from .postmortem import OutboxNotifier
 from .report import (
     EXECUTION_HEADER,
+    M1_TITLE,
+    M2_TITLE,
     M3_TITLE,
     M4_TITLE,
     M5_TITLE,
+    M6_TITLE,
+    M7_TITLE,
+    M8_TITLE,
     PrintTrace,
+    approval_decision,
     classify_decision,
     decision,
+    event_line,
+    execute_decision,
+    handoff_decision,
     header,
     kv,
     m1_report,
+    postmortem_decision,
+    publish_decision,
     verdict_decision,
+    verify_decision,
 )
 from .retrieval import StaticRanker
 from .tools import (
@@ -101,21 +116,8 @@ def _matched_action(world: SimWorld, alert: Alert) -> str | None:
     return RUNBOOKS[verdict.runbook_id].action if verdict.runbook_id else None
 
 
-def cmd_gates() -> int:
-    """M4 classification, M5 time-boxed approval on the real clock, and an execute/retry demo."""
-    world = SimWorld()
-    alerts = [world.alert("ALRT-9001"), world.alert("ALRT-9002")]
-    actions = {}
-    print(header(4, M4_TITLE))
-    for alert in alerts:
-        action = _matched_action(world, alert)
-        if action is None:
-            print(f"no matched runbook for {alert.alert_id}", file=sys.stderr)
-            return 1
-        actions[alert.alert_id] = action
-        print(classify_decision(alert, classify_remediation(action)))
-
-    print(header(5, M5_TITLE))
+def _page_check_demo() -> None:
+    """The three M5 page behaviours on the real clock (Outcome 3)."""
     clock = ControlClock()
     trace = PrintTrace(clock)
     window = APPROVAL_DEADLINE_S
@@ -151,6 +153,24 @@ def cmd_gates() -> int:
         )
     )
 
+
+def cmd_gates() -> int:
+    """M4 classification, M5 time-boxed approval on the real clock, and an execute/retry demo."""
+    world = SimWorld()
+    alerts = [world.alert("ALRT-9001"), world.alert("ALRT-9002")]
+    actions = {}
+    print(header(4, M4_TITLE))
+    for alert in alerts:
+        action = _matched_action(world, alert)
+        if action is None:
+            print(f"no matched runbook for {alert.alert_id}", file=sys.stderr)
+            return 1
+        actions[alert.alert_id] = action
+        print(classify_decision(alert, classify_remediation(action)))
+
+    print(header(5, M5_TITLE))
+    _page_check_demo()
+
     print(EXECUTION_HEADER)
     alert = alerts[1]
     action = actions[alert.alert_id]
@@ -169,6 +189,122 @@ def cmd_gates() -> int:
     return 0
 
 
+def _m1_section(world: SimWorld, alert: Alert) -> None:
+    clock = DataClock(alert.fired_at + DATA_CLOCK_START_OFFSET_S)
+    start, end = alert.fired_at - LOOKBACK_S, alert.fired_at
+    observations = [
+        get_latency(world, clock, alert.service, start, end),
+        get_error_rate(world, clock, alert.service, start, end),
+        get_deployments(world, clock, alert.service, start, end),
+        get_dependencies(world, clock, alert.service, end),
+        get_logs(world, clock, alert.service, start, end),
+    ]
+    print(m1_report(alert, observations, with_header=False))
+
+
+def _case_lines(case: Case, *kinds: str) -> None:
+    for event in case.trace.events:
+        if event.kind in kinds:
+            print(event_line(event))
+
+
+def _new_commander(world: SimWorld) -> Commander:
+    script = {SECONDARY_ONCALL: (DEMO_SECONDARY_DELAY_S, "approve")}  # priya never answers
+    return Commander(world, StaticRanker(STATIC_RANKER_ORDER), ScriptedResponder(script))
+
+
+def cmd_run(alert_id: str | None) -> int:
+    """M1-M8 for one alert, or all three. Cases run first (real clock); sections print from the cases."""
+    world = SimWorld()
+    ids = world.alert_ids() if alert_id is None else (alert_id,)
+    alerts = []
+    for known in ids:
+        alert = _lookup(world, known)
+        if alert is None:
+            return 2
+        alerts.append(alert)
+    commander = _new_commander(world)
+    cases = [commander.run(a) for a in alerts]
+    for case in cases:
+        if case.execution is not None and case.alert.alert_id == "ALRT-9002":
+            commander.retry_execution(case)  # Outcome 5: a retry must not execute again
+    variant = None
+    if alert_id is None:  # fix_fails needs a fresh world: the first run already fixed the service
+        fresh = SimWorld()
+        variant = _new_commander(fresh).run(fresh.alert("ALRT-9002"), fix_outcome="fix_fails")
+    drafts = {c.alert.alert_id: c.draft for c in cases}
+
+    print(header(1, M1_TITLE))
+    for case in cases:
+        _m1_section(world, case.alert)
+
+    print(header(2, M2_TITLE))
+    print(
+        kv(ranker=StaticRanker(STATIC_RANKER_ORDER).label)
+        + "   # real hybrid retrieval arrives in v0.5"
+    )
+    for case in cases:
+        _case_lines(case, "RANK")
+
+    print(header(3, M3_TITLE))
+    for case in cases:
+        print(kv(alert=case.alert.alert_id))
+        _case_lines(case, "ROUND", "HYPOTHESES")
+        print(verdict_decision(case.alert.alert_id, case.investigation.verdict))
+
+    print(header(4, M4_TITLE))
+    for case in cases:
+        if case.classification is not None:
+            print(classify_decision(case.alert, case.classification))
+
+    print(header(5, M5_TITLE))
+    _page_check_demo()
+    for case in cases:
+        if case.approval is not None:
+            _case_lines(case, "PAGE", "ESCALATE")
+            token = case.approval.token
+            print(
+                approval_decision(
+                    case.alert.alert_id,
+                    case.approval.escalated,
+                    token.approved_by if token else "none",
+                )
+            )
+
+    print(header(6, M6_TITLE))
+    for case in cases:
+        aid = case.alert.alert_id
+        for result in (case.execution, case.retry):
+            if result is not None:
+                print(execute_decision(aid, case.action, result))
+        if case.verification is not None:
+            print(verify_decision(aid, case.verification))
+        if case.handoff_reason is not None:
+            print(handoff_decision(aid, case.handoff_reason))
+    if variant is not None:
+        print(verify_decision(variant.alert.alert_id, variant.verification, "fix_fails"))
+        print(handoff_decision(variant.alert.alert_id, variant.handoff_reason))
+
+    print(header(7, M7_TITLE))
+    for case in cases:
+        aid = case.alert.alert_id
+        print(postmortem_decision(aid, drafts[aid]))
+        print(
+            kv(
+                alert=aid,
+                timeline_events=len(drafts[aid].timeline),
+                log_excerpts=len(drafts[aid].untrusted_log_excerpts),
+            )
+        )
+    first = cases[0]
+    published = commander.publish(first, OutboxNotifier())  # the explicit, human-triggered step
+    _case_lines(first, "PUBLISH")
+    print(publish_decision(first.alert.alert_id, published))
+
+    print(header(8, M8_TITLE) + "  not implemented in v0.4")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m incident_commander")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -179,7 +315,14 @@ def main(argv: list[str] | None = None) -> int:
     )
     investigate_cmd.add_argument("alert_id")
     sub.add_parser("gates", help="M4/M5: classification, time-boxed approval, idempotent execution")
+    run_cmd = sub.add_parser("run", help="M1-M8 end to end for one alert, or --all")
+    run_cmd.add_argument("alert_id", nargs="?")
+    run_cmd.add_argument("--all", action="store_true", help="run all three demo alerts")
     args = parser.parse_args(argv)
+    if args.command == "run":
+        if args.all == (args.alert_id is not None):
+            parser.error("run needs exactly one of an alert id or --all")
+        return cmd_run(None if args.all else args.alert_id)
     if args.command == "gates":
         return cmd_gates()
     if args.command == "investigate":
