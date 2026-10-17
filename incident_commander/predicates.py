@@ -37,7 +37,7 @@ def recent_median(data: tuple, end: float) -> float | None:
 
 
 def _band(data: tuple, baseline: float | None, fired_at: float, low: float, high: float):
-    """(ratio, is_low, is_high) of the recent median to baseline, or None if unmeasurable."""
+    """(ratio <= low, ratio >= high) of recent median to baseline; None if unmeasurable."""
     med = recent_median(data, fired_at)
     if med is None or not baseline:
         return None
