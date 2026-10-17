@@ -41,16 +41,14 @@ jobs:
       - name: Format check
         run: ruff format --check .
 
-      # Test/gate steps are skipped until the code exists; remove the `if:` lines
-      # once tests/, tests_plus/ and incident_commander/dod.py are in place.
+      # The tests_plus guard stays until the extension exists (v1.1).
       - name: Unit tests (graded build)
-        if: hashFiles('tests/**') != ''
         run: python -m unittest discover -s tests -v
 
       - name: Unit tests (extension)
         if: hashFiles('tests_plus/**') != ''
         run: python -m unittest discover -s tests_plus -v
 
-      - name: Definition-of-Done gates
-        if: hashFiles('incident_commander/dod.py') != ''
-        run: python -m incident_commander.dod all
+      # Only G1 exists so far; switch to `dod all` when v1.0 adds the other gates.
+      - name: Definition-of-Done gates (G1 purity)
+        run: python -m incident_commander.dod purity
