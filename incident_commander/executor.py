@@ -31,9 +31,10 @@ def _token_valid(token: ApprovalToken | None, action: str, service: str) -> bool
 
 
 class Executor:
-    def __init__(self, world: SimWorld, clock: DataClock) -> None:
+    def __init__(self, world: SimWorld, clock: DataClock, outcome: str = "success") -> None:
         self._world = world
         self._clock = clock
+        self._outcome = outcome
         self._ledger: dict[tuple, Execution] = {}
 
     def execute(
@@ -49,7 +50,7 @@ class Executor:
             raise ApprovalRequired(f"{action} on {service} needs a matching approval token")
         at = self._clock.now()
         try:
-            self._world.apply_remediation(service, action, at)
+            self._world.apply_remediation(service, action, at, self._outcome)
         except (KeyError, ValueError) as exc:
             return ExecutionResult("failed", None, f"{type(exc).__name__}: {exc}")
         execution = Execution(execution_id_for(key), key, action, service, at)
