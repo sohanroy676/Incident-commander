@@ -7,8 +7,8 @@
 
 ## Done
 
-- (feature/fix name) — brief note, date
+- v0.1 Foundations (branch `v0.1-foundations`, not merged or tagged): types, config, clocks, fixtures for the three demo alerts, SimWorld, five read-only tools, M1 `tools` command, G1 `dod purity`. 44 unittest tests, ruff clean, `traces/v0.1.txt` saved from a real run. 2026-10-18
 
 ## In progress
 
-- (feature/fix name) — status
+- Waiting for your review: merge `v0.1-foundations` to main and tag `v0.1`.
