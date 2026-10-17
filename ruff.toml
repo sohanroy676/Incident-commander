@@ -1,0 +1,4 @@
+line-length = 100
+target-version = "py310"
+# docs hold spec text with illustrative code blocks; ruff must not rewrite them
+extend-exclude = ["docs"]

@@ -3,10 +3,12 @@ Full detail per version: docs/DETAILED_ROADMAP.md. Each version is done when its
 gates still pass, its trace is saved to traces/vX.Y.txt, and the git tag exists.
 
 ## Now
-- v0.1 Foundations: scaffold, clocks, types, config, simulated world, five tools, M1 output, G1 purity.
 - v0.2 Investigator: predicates, planner, bounded 4-round loop with a declared stub ranker.
 - v0.3 Gates: blast-radius classifier, approval gate with real clock and escalation, idempotent executor.
 - v0.4 MVP-1 end-to-end: verifier, postmortem, Commander state machine, `run --all` end to end.
+
+## Done (awaiting merge and tag)
+- v0.1 Foundations: scaffold, clocks, types, config, simulated world, five tools, M1 output, G1 purity.
 
 ## Next
 - v0.5 Hybrid retrieval: BM25 + char TF-IDF + RRF replaces the stub ranker.

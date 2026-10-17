@@ -1,0 +1,40 @@
+python=3.12.3 scikit-learn=1.9.1 platform=Windows-11-10.0.26300-SP0
+$ python -m incident_commander tools ALRT-9001
+== M1 SIGNAL INGESTION ==
+alert=ALRT-9001 service=checkout-service fired_at=1760000100 severity_label=high
+tool             age_s  max_staleness_s  fresh summary
+get_latency      3.0    60               True  median_5m_ms=1440 baseline_ms=180
+get_error_rate   3.0    60               True  median_5m=0.011 baseline=0.010 ratio=1.1
+get_deployments  10.0   300              True  count=1 latest=v2.14.0 before_alert_s=720
+get_dependencies 30.0   3600             True  payment-service(lat=1.0,err=1.0) inventory-service(lat=1.0,err=1.0)
+get_logs         5.0    120              True  lines=24   (content not shown here: untrusted)
+
+$ python -m incident_commander tools ALRT-9002
+== M1 SIGNAL INGESTION ==
+alert=ALRT-9002 service=inventory-service fired_at=1760086500 severity_label=high
+tool             age_s  max_staleness_s  fresh summary
+get_latency      3.0    60               True  median_5m_ms=1075 baseline_ms=180
+get_error_rate   3.0    60               True  median_5m=0.010 baseline=0.010 ratio=1
+get_deployments  10.0   300              True  count=1 latest=v1.9.3 before_alert_s=18000
+get_dependencies 30.0   3600             True  none
+get_logs         5.0    120              True  lines=24   (content not shown here: untrusted)
+
+$ python -m incident_commander tools ALRT-9003
+== M1 SIGNAL INGESTION ==
+alert=ALRT-9003 service=notification-service fired_at=1760172900 severity_label=medium
+tool             age_s  max_staleness_s  fresh summary
+get_latency      3.0    60               True  median_5m_ms=185 baseline_ms=180
+get_error_rate   3.0    60               True  median_5m=0.050 baseline=0.010 ratio=5
+get_deployments  10.0   300              True  count=0 latest=none
+get_dependencies 30.0   3600             True  email-gateway(lat=1.0,err=1.0)
+get_logs         5.0    120              True  lines=24   (content not shown here: untrusted)
+
+$ python -m incident_commander.dod purity
+G1 purity: PASS  (modules scanned: 12; allowed imports: stdlib + sklearn)
+
+$ python -m unittest discover -s tests
+............................................
+----------------------------------------------------------------------
+Ran 44 tests in 3.890s
+
+OK
