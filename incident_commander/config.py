@@ -20,6 +20,10 @@ ROUND_BUDGET = 4  # equals the number of evidence tools
 APPROVAL_DEADLINE_S = 0.3  # per page, demo value
 APPROVAL_TICK_S = 0.02  # gate poll interval (real sleep)
 APPROVAL_DEMO_SLEEP_S = 0.4  # M5 demo sleep: 0.1 s past the 0.3 s deadline
+VERIFY_WINDOW_S = 300  # post-fix window the verifier re-queries (simulated time)
+METRIC_TOOLS = {"latency_ms": "get_latency", "error_rate": "get_error_rate"}  # alert.metric -> tool
+DEMO_SECONDARY_DELAY_S = 0.1  # ALRT-9001 demo: devon approves 0.1 s after being paged
+PUBLISH_RECIPIENTS = ("oncall-channel",)
 
 # --- Stub ranker (v0.2-v0.4): deliberately wrong-first for ALRT-9001/9002, to show evidence overrides rank.
 STATIC_RANKER_ORDER = ("RB-102", "RB-101", "RB-104", "RB-103")
