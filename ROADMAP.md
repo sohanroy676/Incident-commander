@@ -8,9 +8,7 @@ gates still pass, its trace is saved to traces/vX.Y.txt, and the git tag exists.
 
 ## Done
 - v0.1 Foundations (tagged `v0.1`): scaffold, clocks, types, config, simulated world, five tools, M1 output, G1 purity.
-
-## Done (awaiting merge and tag)
-- v0.2 Investigator: predicates, planner, bounded 4-round loop with a declared stub ranker, `investigate` command.
+- v0.2 Investigator (tagged `v0.2`): predicates, planner, bounded 4-round loop with a declared stub ranker, `investigate` command.
 
 ## Next
 - v0.5 Hybrid retrieval: BM25 + char TF-IDF + RRF replaces the stub ranker.

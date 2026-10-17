@@ -1,7 +1,7 @@
 # Active Context
 
 ## Current focus
-v0.2 Investigator is implemented on branch `v0.2-investigator` (PR open, CI pending); waiting for the user to approve merge and tag `v0.2`. Then v0.3 Gates.
+v0.2 Investigator is done: merged to main via PR #6, tag `v0.2` pushed, CI green. Starting v0.3 Gates next.
 
 ## Recent decisions
 - Specs came from docs/PHASE1-5.md (now committed). Deviations from PHASE5 are listed in docs/THRESHOLDS.md
@@ -17,9 +17,11 @@ v0.2 Investigator is implemented on branch `v0.2-investigator` (PR open, CI pend
   no refetch on tool error, ambiguous stops the loop at once, constant series is not a trend.
 - `report.recent_median` moved to `predicates.recent_median` (report imports it).
 
+- Workflow preference (from the user, 2026-10-18): from v0.3 on, try branch -> commit -> merge locally without a PR when viable; still ask before pushing/merging/tagging.
+
 ## Blockers / open questions
 - Install git-cliff (or similar) to regenerate CHANGELOG.md? (none installed; CHANGELOG still empty)
 
 ## Next step
-After v0.2 is merged and tagged: v0.3 Gates (`v0.3-gates`): `blast_radius.classify_remediation(action)`, approval gate
+v0.3 Gates (`v0.3-gates`): `blast_radius.classify_remediation(action)`, approval gate
 (real ControlClock deadline, escalation priya -> devon, ApprovalToken), idempotent executor, tests, `traces/v0.3.txt`.
