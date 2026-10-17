@@ -73,3 +73,30 @@ class Verdict:
     runbook_id: str | None
     rounds: int
     reason: str | None  # all_refuted | insufficient_evidence | ambiguous_match
+
+
+@dataclass(frozen=True)
+class Classification:
+    action: str
+    tier: str  # "low" | "high"
+    requires_approval: bool
+    reasons: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class ApprovalToken:
+    """Structural guard created only inside the approval gate; not a cryptographic credential."""
+
+    action: str
+    service: str
+    approved_by: str
+    approved_at: float
+
+
+@dataclass(frozen=True)
+class Execution:
+    execution_id: str
+    key: tuple
+    action: str
+    service: str
+    executed_at: float

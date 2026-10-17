@@ -18,6 +18,8 @@ DEP_ERROR_UNHEALTHY = 3.0
 VERIFY_TOLERANCE = 1.10  # 195/180 = 1.083 passes, 3900/180 = 21.7 fails
 ROUND_BUDGET = 4  # equals the number of evidence tools
 APPROVAL_DEADLINE_S = 0.3  # per page, demo value
+APPROVAL_TICK_S = 0.02  # gate poll interval (real sleep)
+APPROVAL_DEMO_SLEEP_S = 0.4  # M5 demo sleep: 0.1 s past the 0.3 s deadline
 
 # --- Stub ranker (v0.2-v0.4): deliberately wrong-first for ALRT-9001/9002, to show evidence overrides rank.
 STATIC_RANKER_ORDER = ("RB-102", "RB-101", "RB-104", "RB-103")
@@ -38,7 +40,6 @@ TOOL_SPECS: dict[str, ToolSpec] = {
 }
 
 # --- Action properties (PHASE5 9.3): (quickly_reversible, changes_code_or_routing).
-# Data only in v0.1; the classifier arrives in v0.3.
 ACTION_PROPERTIES: dict[str, tuple[bool, bool]] = {
     "restart_service": (True, False),
     "scale_out_service": (True, False),

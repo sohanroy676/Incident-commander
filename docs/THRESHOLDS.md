@@ -59,3 +59,10 @@ reason. The golden set is never used to tune a threshold (DETAILED_ROADMAP secti
 - ROUND lines print the tool's predicates that appear in a hypothesis still alive at the start of the round
   (all of them in exploratory mode); `RoundRecord.values` keeps every predicate for the tool.
 - Runbook `text` is a placeholder until v0.5; `follow_ups` is empty.
+
+## Choices that go beyond PHASE5 (v0.3)
+
+- `APPROVAL_TICK_S = 0.02`: the gate polls the responder every 20 ms of real time (PHASE5 7.8 default).
+- `APPROVAL_DEMO_SLEEP_S = 0.4`: the M5 demo sleeps 0.4 s against a 0.3 s page window, leaving a 0.1 s margin.
+- The remediation effects (195 / 3900 / 182 ms) and their 60 s delay are fixture data in `fixtures/services.py`.
+- Any approval reply other than "approve" yields no token (fail closed); "deny" ends the request at once.
