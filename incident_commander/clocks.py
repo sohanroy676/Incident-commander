@@ -27,7 +27,13 @@ class ControlClock:
         return time.monotonic()
 
     def sleep(self, seconds: float) -> None:
-        time.sleep(seconds)
+        # time.sleep can return slightly early relative to time.monotonic (coarse Windows
+        # timers), so keep sleeping until the monotonic clock has really advanced that far.
+        target = time.monotonic() + seconds
+        remaining = seconds
+        while remaining > 0:
+            time.sleep(remaining)
+            remaining = target - time.monotonic()
 
     def elapsed(self) -> float:
         return time.monotonic() - _PROCESS_START
