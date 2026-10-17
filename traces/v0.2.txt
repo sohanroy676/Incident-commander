@@ -1,0 +1,45 @@
+python=3.12.3 scikit-learn=1.9.1 platform=Windows-11-10.0.26300-SP0
+$ python -m incident_commander investigate ALRT-9001
+== M3 INVESTIGATION ==
+alert=ALRT-9001 ranker=STUB order=RB-102,RB-101,RB-104,RB-103   # stub deliberately wrong-first
+[t+0.00s] ROUND n=1 tool=get_latency mode=coverage fresh=True latency_elevated=TRUE latency_step_change=TRUE latency_gradual_trend=FALSE latency_normal=FALSE
+[t+0.00s] HYPOTHESES RB-101=open RB-102=refuted RB-103=open RB-104=refuted
+[t+0.00s] ROUND n=2 tool=get_error_rate mode=coverage fresh=True error_normal=TRUE error_elevated=FALSE
+[t+0.00s] HYPOTHESES RB-101=open RB-102=refuted RB-103=refuted RB-104=refuted
+[t+0.00s] ROUND n=3 tool=get_deployments mode=coverage fresh=True deploy_in_window=TRUE
+[t+0.00s] HYPOTHESES RB-101=confirmed RB-102=refuted RB-103=refuted RB-104=refuted
+DECISION verdict alert=ALRT-9001 verdict=matched runbook=RB-101 rounds=3
+
+$ python -m incident_commander investigate ALRT-9002
+== M3 INVESTIGATION ==
+alert=ALRT-9002 ranker=STUB order=RB-102,RB-101,RB-104,RB-103   # stub deliberately wrong-first
+[t+0.00s] ROUND n=1 tool=get_latency mode=coverage fresh=True latency_elevated=TRUE latency_step_change=FALSE latency_gradual_trend=TRUE latency_normal=FALSE
+[t+0.00s] HYPOTHESES RB-101=refuted RB-102=open RB-103=open RB-104=refuted
+[t+0.00s] ROUND n=2 tool=get_error_rate mode=coverage fresh=True error_normal=TRUE error_elevated=FALSE
+[t+0.00s] HYPOTHESES RB-101=refuted RB-102=open RB-103=refuted RB-104=refuted
+[t+0.00s] ROUND n=3 tool=get_deployments mode=coverage fresh=True no_deploy_in_window=TRUE
+[t+0.00s] HYPOTHESES RB-101=refuted RB-102=confirmed RB-103=refuted RB-104=refuted
+DECISION verdict alert=ALRT-9002 verdict=matched runbook=RB-102 rounds=3
+
+$ python -m incident_commander investigate ALRT-9003
+== M3 INVESTIGATION ==
+alert=ALRT-9003 ranker=STUB order=RB-102,RB-101,RB-104,RB-103   # stub deliberately wrong-first
+[t+0.00s] ROUND n=1 tool=get_latency mode=coverage fresh=True latency_elevated=FALSE latency_step_change=FALSE latency_gradual_trend=FALSE latency_normal=TRUE
+[t+0.00s] HYPOTHESES RB-101=refuted RB-102=refuted RB-103=refuted RB-104=open
+[t+0.00s] ROUND n=2 tool=get_error_rate mode=coverage fresh=True error_elevated=TRUE
+[t+0.00s] HYPOTHESES RB-101=refuted RB-102=refuted RB-103=refuted RB-104=open
+[t+0.00s] ROUND n=3 tool=get_deployments mode=coverage fresh=True deploy_in_window=FALSE
+[t+0.00s] HYPOTHESES RB-101=refuted RB-102=refuted RB-103=refuted RB-104=refuted
+[t+0.00s] ROUND n=4 tool=get_dependencies mode=exploratory fresh=True dependency_unhealthy=FALSE
+[t+0.00s] HYPOTHESES RB-101=refuted RB-102=refuted RB-103=refuted RB-104=refuted
+DECISION verdict alert=ALRT-9003 verdict=no_confident_match runbook=none rounds=4 reason=all_refuted
+
+$ python -m incident_commander.dod purity
+G1 purity: PASS  (modules scanned: 16; allowed imports: stdlib + sklearn)
+
+$ python -m unittest discover -s tests
+..........................................................................................................
+----------------------------------------------------------------------
+Ran 106 tests in 9.610s
+
+OK

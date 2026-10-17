@@ -1,7 +1,7 @@
 # Active Context
 
 ## Current focus
-v0.1 Foundations is done: merged to main via PR #4, tag `v0.1` pushed, CI green. Starting v0.2 next.
+v0.2 Investigator is implemented on branch `v0.2-investigator` (PR open, CI pending); waiting for the user to approve merge and tag `v0.2`. Then v0.3 Gates.
 
 ## Recent decisions
 - Specs came from docs/PHASE1-5.md (now committed). Deviations from PHASE5 are listed in docs/THRESHOLDS.md
@@ -13,9 +13,13 @@ v0.1 Foundations is done: merged to main via PR #4, tag `v0.1` pushed, CI green.
 - CHANGELOG.md left alone: no generator (git-cliff / conventional-changelog) is installed.
 - Dev env: `.venv` on Python 3.12.3, scikit-learn 1.9.1 (gitignored).
 
+- v0.2 choices beyond PHASE5 are in docs/THRESHOLDS.md ("Choices that go beyond PHASE5 (v0.2)"): post-loop verdict check,
+  no refetch on tool error, ambiguous stops the loop at once, constant series is not a trend.
+- `report.recent_median` moved to `predicates.recent_median` (report imports it).
+
 ## Blockers / open questions
 - Install git-cliff (or similar) to regenerate CHANGELOG.md? (none installed; CHANGELOG still empty)
 
 ## Next step
-v0.2 Investigator (`v0.2-investigator`): predicates, planner, bounded
-4-round loop, StaticRanker (deliberately wrong-first), `investigate` command, tests, `traces/v0.2.txt`.
+After v0.2 is merged and tagged: v0.3 Gates (`v0.3-gates`): `blast_radius.classify_remediation(action)`, approval gate
+(real ControlClock deadline, escalation priya -> devon, ApprovalToken), idempotent executor, tests, `traces/v0.3.txt`.
