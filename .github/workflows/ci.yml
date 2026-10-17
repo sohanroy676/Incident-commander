@@ -1,0 +1,51 @@
+# CI: lint, format check, unit tests and Definition-of-Done gates.
+# Runs on every push and PR to main, and manually via workflow_dispatch.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.12"]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Lint
+        run: ruff check .
+
+      - name: Format check
+        run: ruff format --check .
+
+      - name: Unit tests (graded build)
+        run: python -m unittest discover -s tests -v
+
+      - name: Unit tests (extension)
+        run: python -m unittest discover -s tests_plus -v
+
+      - name: Definition-of-Done gates
+        run: python -m incident_commander.dod all
