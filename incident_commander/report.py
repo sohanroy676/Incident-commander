@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+from .clocks import ControlClock
 from .predicates import recent_median
-from .types import Alert, Observation
+from .types import Alert, Observation, Verdict
 
 M1_TITLE = "SIGNAL INGESTION"
+M3_TITLE = "INVESTIGATION"
 
 
 def header(n: int, title: str) -> str:
@@ -75,3 +77,32 @@ def m1_report(alert: Alert, observations: list[Observation]) -> str:
             f"{o.tool:<17}{o.age_s:<7.1f}{o.max_staleness_s:<17}{o.fresh!s:<6}{summarize(o)}"
         )
     return "\n".join(lines)
+
+
+def trace_line(elapsed_s: float, kind: str, **fields: object) -> str:
+    """`[t+0.00s] KIND k=v`: real elapsed seconds, then the event's fields."""
+    body = f" {kv(**fields)}" if fields else ""
+    return f"[t+{elapsed_s:.2f}s] {kind}{body}"
+
+
+class PrintTrace:
+    """Trace sink that prints each event with real seconds since it was created."""
+
+    def __init__(self, clock: ControlClock | None = None) -> None:
+        self._clock = clock or ControlClock()
+        self._start = self._clock.now()
+
+    def emit(self, kind: str, **fields: object) -> None:
+        print(trace_line(self._clock.now() - self._start, kind, **fields))
+
+
+def verdict_decision(alert_id: str, verdict: Verdict) -> str:
+    fields: dict[str, object] = {
+        "alert": alert_id,
+        "verdict": verdict.kind,
+        "runbook": verdict.runbook_id or "none",
+        "rounds": verdict.rounds,
+    }
+    if verdict.reason:
+        fields["reason"] = verdict.reason
+    return decision("verdict", **fields)
