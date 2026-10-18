@@ -3,7 +3,7 @@ Full detail per version: docs/DETAILED_ROADMAP.md. Each version is done when its
 gates still pass, its trace is saved to traces/vX.Y.txt, and the git tag exists.
 
 ## Now
-- v0.5 Hybrid retrieval: BM25 + char TF-IDF + RRF replaces the stub ranker.
+- v0.5 Hybrid retrieval is built on branch `v0.5-retrieval`; waiting for merge, push, CI and tag.
 
 ## Done
 - v0.1 Foundations (tagged `v0.1`): scaffold, clocks, types, config, simulated world, five tools, M1 output, G1 purity.
