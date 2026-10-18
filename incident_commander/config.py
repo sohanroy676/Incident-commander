@@ -28,6 +28,15 @@ PUBLISH_RECIPIENTS = ("oncall-channel",)
 # --- Stub ranker (v0.2-v0.4): deliberately wrong-first for ALRT-9001/9002, to show evidence overrides rank.
 STATIC_RANKER_ORDER = ("RB-102", "RB-101", "RB-104", "RB-103")
 
+# --- Hybrid retrieval (v0.5). Rank is a planner tie-break only; none of these decide a verdict.
+RRF_K = 60  # standard reciprocal-rank-fusion constant
+BM25_K1 = 1.5  # term-frequency saturation
+BM25_B = 0.75  # document-length normalisation
+CHAR_NGRAM_RANGE = (2, 4)  # char_wb n-gram sizes for the TF-IDF side
+SMALL_MARGIN = (
+    0.001  # top-2 fused gap below this = retrieval cannot separate them (two rank steps ~0.0005)
+)
+
 # --- Simulated data and clocks (PHASE5 7.2, 8)
 SAMPLE_INTERVAL_S = 60  # series sampling step
 DATA_CLOCK_START_OFFSET_S = 5.0  # DataClock starts at fired_at + 5
