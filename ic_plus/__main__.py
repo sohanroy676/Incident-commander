@@ -1,4 +1,4 @@
-"""CLI: python -m ic_plus run <ALERT>|--all | scenario <name>|all   (v1.1: --llm off only)."""
+"""CLI: python -m ic_plus run <ALERT>|--all | scenario <name>|all   [--llm off|local|hosted]."""
 
 from __future__ import annotations
 
@@ -14,14 +14,55 @@ from incident_commander.retrieval import HybridRanker
 from incident_commander.world import SimWorld
 
 from .approver_cli import CliResponder
-from .scenarios import SCENARIOS
+from .envfile import load_env
+from .llm_client import LLMClient
+from .narrator import UNAVAILABLE_LINE, narrate
+from .scenarios import SCENARIOS, _commander
+
+LOCAL_URL = "http://localhost:11434/v1"
 
 
-def _banner(approver: str) -> None:
-    print(f"extension: llm=off approver={approver}")
+def _banner(llm: str, approver: str) -> None:
+    print(f"extension: llm={llm} approver={approver}")
 
 
-def _run_cli(alert_id: str, deadline_s: float | None) -> int:
+def _make_client(args: argparse.Namespace) -> LLMClient | None:
+    """Flags beat the dotenv file beat the local default. None means "not configured" (fallback)."""
+    env = load_env()
+    url = args.llm_url or env.get("LLM_BASE_URL") or (LOCAL_URL if args.llm == "local" else "")
+    model = args.model or env.get("LLM_MODEL") or ""
+    key = env.get("LLM_API_KEY") if args.llm == "hosted" else None  # local servers ignore keys
+    if not url or not model or (args.llm == "hosted" and not key):
+        missing = [n for n, v in (("url", url), ("model", model)) if not v]
+        if args.llm == "hosted" and not key:
+            missing.append("key")
+        print(f"llm: not configured (missing {', '.join(missing)})", file=sys.stderr)
+        return None
+    return LLMClient(url, model, key)
+
+
+class _Narration:
+    """Runs the narrator per case; once the server is unavailable the rest skip the calls."""
+
+    def __init__(self, args: argparse.Namespace) -> None:
+        self.on = args.llm != "off"
+        self.client = _make_client(args) if self.on else None
+        self.down = self.on and self.client is None
+
+    def show(self, case) -> None:
+        if not self.on:
+            return
+        print(f"narrator: alert={case.alert.alert_id}")
+        if self.down:
+            print(UNAVAILABLE_LINE)
+            return
+        outcome = narrate(case, self.client)
+        self.down = outcome.status == "unavailable"
+        for line in outcome.lines:
+            print(line)
+
+
+def _run_cli(alert_id: str, deadline_s: float | None, args: argparse.Namespace) -> int:
     """One alert with a human answering the page on the terminal."""
     world = SimWorld()
     try:
@@ -41,7 +82,8 @@ def _run_cli(alert_id: str, deadline_s: float | None) -> int:
     for line in case_decision_lines(case):
         print(line)
     print(postmortem_decision(alert_id, case.draft))
-    _banner("cli")
+    _Narration(args).show(case)
+    _banner(args.llm, "cli")
     return 0
 
 
@@ -60,17 +102,23 @@ def _run_scenarios(name: str) -> int:
 
 def _llm_arg(value: str) -> str:
     if value not in ("off", "local", "hosted"):
-        raise argparse.ArgumentTypeError(f"invalid choice: {value!r} (choose from off)")
+        raise argparse.ArgumentTypeError(
+            f"invalid choice: {value!r} (choose from off, local, hosted)"
+        )
     return value
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m ic_plus")
-    help_llm = "LLM mode (v1.1: off only)"
+    help_llm = "LLM mode: off (default), local or hosted"
     parser.add_argument("--llm", type=_llm_arg, default="off", help=help_llm)
     # Also accepted after the subcommand; SUPPRESS keeps it from overriding a value given before.
     after = argparse.ArgumentParser(add_help=False)
     after.add_argument("--llm", type=_llm_arg, default=argparse.SUPPRESS, help=help_llm)
+    for each in (parser, after):
+        default = None if each is parser else argparse.SUPPRESS
+        each.add_argument("--llm-url", default=default, help="OpenAI-compatible base URL")
+        each.add_argument("--model", default=default, help="model name")
     sub = parser.add_subparsers(dest="command", required=True)
     run_cmd = sub.add_parser(
         "run", parents=[after], help="the graded pipeline, optionally with a human approver"
@@ -82,9 +130,6 @@ def main(argv: list[str] | None = None) -> int:
     scenario = sub.add_parser("scenario", parents=[after], help="one extra scenario, or all")
     scenario.add_argument("name", choices=(*SCENARIOS, "all"))
     args = parser.parse_args(argv)
-    if args.llm != "off":
-        print(f"--llm {args.llm} is not available until v1.2; use --llm off", file=sys.stderr)
-        return 2
     if args.command == "scenario":
         return _run_scenarios(args.name)
     if args.all == (args.alert_id is not None):
@@ -94,9 +139,15 @@ def main(argv: list[str] | None = None) -> int:
     if args.approver == "cli":
         if args.all:
             parser.error("--approver cli takes one alert id, not --all")
-        return _run_cli(args.alert_id, args.deadline)
+        return _run_cli(args.alert_id, args.deadline, args)
     code = cmd_run(None if args.all else args.alert_id)
-    _banner("scripted")
+    if args.llm != "off" and code != 2:
+        narration = _Narration(args)
+        world = SimWorld()
+        # The narrator reads separate, identical deterministic cases: cmd_run prints, never returns.
+        for known in world.alert_ids() if args.all else (args.alert_id,):
+            narration.show(_commander(SimWorld()).run(world.alert(known)))
+    _banner(args.llm, "scripted")
     return code
 
 

@@ -2,6 +2,7 @@
 and the extension's own purity (stdlib + incident_commander only, no environment, no network)."""
 
 import ast
+import re
 import subprocess
 import sys
 import unittest
@@ -45,23 +46,24 @@ class TestBaselineParity(unittest.TestCase):
 
 
 class TestFlags(unittest.TestCase):
-    def test_local_and_hosted_wait_for_v1_2(self):
-        for mode in ("local", "hosted"):
-            with self.subTest(mode=mode):
-                p = run("ic_plus", "--llm", mode, "run", "--all")
-                self.assertEqual(p.returncode, 2)
-                self.assertIn("not available until v1.2", p.stderr)
-                self.assertEqual(p.stdout, "")
-
     def test_llm_is_accepted_before_or_after_the_subcommand(self):
-        for argv in (("run", "--all", "--llm", "local"), ("scenario", "all", "--llm", "hosted")):
+        for argv in (
+            ("scenario", "unknown_action", "--llm", "hosted"),
+            ("--llm", "local", "scenario", "unknown_action"),
+        ):
             with self.subTest(argv=argv):
-                p = run("ic_plus", *argv)
-                self.assertEqual(p.returncode, 2)
-                self.assertIn("not available until v1.2", p.stderr)
+                self.assertEqual(run("ic_plus", *argv).returncode, 0)
         before = run("ic_plus", "--llm", "off", "scenario", "unknown_action")
         after = run("ic_plus", "scenario", "unknown_action", "--llm", "off")
         self.assertEqual((before.returncode, after.returncode), (0, 0))
+
+    def test_llm_url_and_model_are_accepted_in_either_position(self):
+        for argv in (
+            ("--llm-url", "http://x/v1", "--model", "m", "scenario", "unknown_action"),
+            ("scenario", "unknown_action", "--llm-url", "http://x/v1", "--model", "m"),
+        ):
+            with self.subTest(argv=argv):
+                self.assertEqual(run("ic_plus", *argv).returncode, 0)
 
     def test_an_unknown_llm_mode_is_a_usage_error(self):
         self.assertEqual(run("ic_plus", "--llm", "bogus", "run", "--all").returncode, 2)
@@ -142,7 +144,10 @@ class TestExtensionPurity(unittest.TestCase):
         for path in self.sources():
             if path.name == "envfile.py":
                 continue
-            self.assertNotIn(".env", path.read_text(encoding="utf-8"), path.name)
+            text = path.read_text(encoding="utf-8")
+            self.assertIsNone(
+                re.search(r"\.env(?!file)", text), path.name
+            )  # .envfile is the module
 
 
 if __name__ == "__main__":
