@@ -1,11 +1,14 @@
-"""CLI: python -m ic_plus run <ALERT>|--all | scenario <name>|all   [--llm off|local|hosted]."""
+"""CLI: python -m ic_plus run <ALERT>|--all | explain <ALERT> <question> | evaluate | scenario <name>|all
+[--llm off|local|hosted]."""
 
 from __future__ import annotations
 
 import argparse
+import contextlib
+import io
 import sys
 
-from incident_commander.__main__ import cmd_run
+from incident_commander.__main__ import cmd_evaluate, cmd_run
 from incident_commander.commander import Commander
 from incident_commander.config import APPROVAL_DEADLINE_S
 from incident_commander.fixtures.runbooks import RUNBOOKS
@@ -15,9 +18,11 @@ from incident_commander.world import SimWorld
 
 from .approver_cli import CliResponder
 from .envfile import load_env
+from .explainer import FALLBACK_LABEL, clean_question, explain, template_answer
 from .llm_client import LLMClient
-from .narrator import UNAVAILABLE_LINE, narrate
+from .narrator import UNAVAILABLE_LINE, build_facts, narrate
 from .scenarios import SCENARIOS, _commander
+from .x3 import ROLES_LINE, advised_orders, advised_orders_of, run_x3
 
 LOCAL_URL = "http://localhost:11434/v1"
 
@@ -54,6 +59,7 @@ class _Narration:
             return
         print(f"narrator: alert={case.alert.alert_id}")
         if self.down:
+            case.trace.emit("llm_unavailable", role="narrator", reason="server unavailable")
             print(UNAVAILABLE_LINE)
             return
         outcome = narrate(case, self.client)
@@ -85,6 +91,53 @@ def _run_cli(alert_id: str, deadline_s: float | None, args: argparse.Namespace) 
     _Narration(args).show(case)
     _banner(args.llm, "cli")
     return 0
+
+
+def _explain(args: argparse.Namespace) -> int:
+    """Answer a question about one finished case; the LLM text is labelled and never a decision."""
+    world = SimWorld()
+    if args.alert_id not in world.alert_ids():
+        print(
+            f"unknown alert: {args.alert_id} (known: {', '.join(world.alert_ids())})",
+            file=sys.stderr,
+        )
+        return 2
+    question = clean_question(args.question)
+    if not question:
+        print("explain needs a non-empty question", file=sys.stderr)
+        return 2
+    case = _commander(SimWorld()).run(world.alert(args.alert_id))
+    if args.llm == "off":
+        print(f"{FALLBACK_LABEL} {template_answer(build_facts(case))}")
+    else:
+        for line in explain(case, question, _make_client(args)).lines:
+            print(line)
+    _banner(args.llm, "scripted")
+    return 0
+
+
+def _evaluate(args: argparse.Namespace) -> int:
+    """The graded M8 as is, then (LLM on) X3: all roles on every fixture, decisions compared."""
+    baseline = io.StringIO()
+    with contextlib.redirect_stdout(baseline):
+        code = cmd_evaluate()
+    print(baseline.getvalue(), end="")
+    if args.llm == "off":
+        print("llm: off")
+        _banner(args.llm, "scripted")
+        return code
+    rows = run_x3(_make_client(args))
+    for row in rows:
+        print(row.line())
+    changed = sum(not row.identical for row in rows)
+    advised = io.StringIO()
+    with advised_orders(advised_orders_of(rows)), contextlib.redirect_stdout(advised):
+        advised_code = cmd_evaluate()
+    if advised.getvalue() != baseline.getvalue() or advised_code != code:
+        changed += 1  # the graded evaluation itself differs under the advised orders
+    print(ROLES_LINE.format(changed=changed))
+    _banner(args.llm, "scripted")
+    return 0 if code == 0 and changed == 0 else 1
 
 
 def _run_scenarios(name: str) -> int:
@@ -127,11 +180,21 @@ def main(argv: list[str] | None = None) -> int:
     run_cmd.add_argument("--all", action="store_true", help="run all three demo alerts")
     run_cmd.add_argument("--approver", choices=("scripted", "cli"), default="scripted")
     run_cmd.add_argument("--deadline", type=float, help="page deadline in seconds (cli approver)")
+    explain_cmd = sub.add_parser(
+        "explain", parents=[after], help="ask why the agent did what it did on one alert"
+    )
+    explain_cmd.add_argument("alert_id")
+    explain_cmd.add_argument("question")
+    sub.add_parser("evaluate", parents=[after], help="M8 plus X3: decisions unchanged with LLM on")
     scenario = sub.add_parser("scenario", parents=[after], help="one extra scenario, or all")
     scenario.add_argument("name", choices=(*SCENARIOS, "all"))
     args = parser.parse_args(argv)
     if args.command == "scenario":
         return _run_scenarios(args.name)
+    if args.command == "explain":
+        return _explain(args)
+    if args.command == "evaluate":
+        return _evaluate(args)
     if args.all == (args.alert_id is not None):
         parser.error("run needs exactly one of an alert id or --all")
     if args.deadline is not None and (args.approver != "cli" or args.deadline <= 0):
