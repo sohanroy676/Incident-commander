@@ -3,7 +3,7 @@ Full detail per version: docs/DETAILED_ROADMAP.md. Each version is done when its
 gates still pass, its trace is saved to traces/vX.Y.txt, and the git tag exists.
 
 ## Now
-- v1.0 is merged to main, CI green, tagged `v1.0`; `incident_commander/` is frozen. v1.1 is merged, CI green, tagged `v1.1`. Next: v1.2.
+- v1.0 is merged to main, CI green, tagged `v1.0`; `incident_commander/` is frozen. v1.1 and v1.2 are merged, CI green, tagged. Next: v1.3.
 
 ## Done
 - v0.1 Foundations (tagged `v0.1`): scaffold, clocks, types, config, simulated world, five tools, M1 output, G1 purity.
@@ -14,9 +14,9 @@ gates still pass, its trace is saved to traces/vX.Y.txt, and the git tag exists.
 - v0.6 Evaluation (merged to main, CI green, tagged `v0.6`): golden set 3/3, differential planted-log attack, naive baseline, `evaluate` and `naive`, real M8.
 - v1.0 Graded release (merged to main, CI green, tagged `v1.0`): `dod trace|repro|all` (G1–G6), `tests/test_invariants.py`, `tests/test_outcomes.py`, `tests/test_canaries.py`, full README, real `traces/run.txt`, CI runs `dod all`.
 - v1.1 Extension scaffold (merged to main, CI green, tagged `v1.1`): `ic_plus` with `--llm off`, interactive CLI approver, eight extra scenarios, `tests_plus/`, `traces/v1.1.txt`.
+- v1.2 LLM client, guard and narrator (merged to main, CI green, tagged `v1.2`): `ic_plus` stdlib OpenAI-compatible client, `.env` parser, deterministic `guard_narrative`, narrator with template fallback, `--llm local|hosted --llm-url --model`, X4 tests with a fake server, `traces/v1.2.txt`. Live trace `traces/v1.2-live.txt` still pending (manual).
 
 ## Next
-- v1.2 LLM client, guard and narrator: stdlib OpenAI-compatible client, deterministic guard, AI-drafted narrative.
 - v1.3 Explainer, advisor and hosted provider; X3 decisions-unchanged proof.
 - v2.0 Extended release: demo scripts, rehearsal, G1–G6 and X1–X4 green, tag.
 

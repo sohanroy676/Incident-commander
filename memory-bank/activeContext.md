@@ -1,7 +1,7 @@
 # Active Context
 
 ## Current focus
-v1.1 Extension scaffold is merged to main, pushed, CI green (extension tests ran on Ubuntu) and tagged `v1.1`. `incident_commander/` stays frozen (tag `v1.0`). Next: v1.2.
+v1.2 LLM client, guard and narrator is merged to main, pushed, CI green and tagged `v1.2`. `incident_commander/` stays frozen (tag `v1.0`). Next: v1.3.
 
 ## Recent decisions
 - Specs came from docs/PHASE1-5.md (now committed). Deviations from PHASE5 are listed in docs/THRESHOLDS.md
@@ -38,7 +38,6 @@ v1.1 Extension scaffold is merged to main, pushed, CI green (extension tests ran
 - v0.6 choices are in docs/THRESHOLDS.md ("Choices that go beyond PHASE5 (v0.6)"): golden services in `fixtures/golden.py`, `SimWorld(planted_logs=)` instead of a `Commander.run` parameter, `golden_world()` for evaluation. `.venv` on Python 3.12.10 / scikit-learn 1.9.1 works again.
 
 ## Next step
-Start v1.2 on branch `v1.2-llm` from main: LLM client, guard, narrator (`--llm local|hosted`, `--llm-url`, `--model`, keys in `.env` read only by `ic_plus`; `.env.example` already committed). X4 tests with recorded replies and a fake HTTP server; `git diff v1.0 -- incident_commander/` must stay empty.
-Gotcha: `.claude/settings.json` has an uncommitted local change (a deny rule on `.env.*` was removed by the user); leave it unless asked.
-v1.1 choices are in docs/THRESHOLDS.md ("Choices that go beyond PHASE5 (v1.1)"): subcommand CLI, `--llm` accepted before or after the subcommand, scripted run delegates to graded `cmd_run`.
-The tests_plus guard in ci.yml is now true (tests_plus/ exists) and stays harmless.
+Start v1.3 on branch `v1.3-roles` from main: explainer and advisor roles plus the hosted provider, X3 proof that decisions are unchanged with the LLM on (`llm: roles=narrator,explainer,advisor decisions_changed=0`). Reuse `ic_plus/llm_client.py`, `guard.py` (add advisor/explainer checks) and the `_Narration` pattern in `ic_plus/__main__.py`; `git diff v1.0 -- incident_commander/` must stay empty.
+v1.2 choices are in docs/THRESHOLDS.md ("Choices that go beyond PHASE5 (v1.2)"): `.env` only (no `--llm-key-file`), flags beat `.env`, narrator runs on separate identical cases after the graded `cmd_run`, narrative is printed by `ic_plus` (graded draft is frozen), guard limits.
+Gotchas: `.claude/settings.json` has an uncommitted local change; leave it unless asked. Reading `.env` via Bash is denied by settings, so tests never depend on it (flags plus a patched `load_env`). `traces/v1.2-live.txt` (a real local or hosted model run) is still pending and manual.
