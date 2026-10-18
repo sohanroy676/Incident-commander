@@ -17,6 +17,7 @@ from incident_commander.fixtures.services import SERVICES
 
 NARRATIVE_KEYS = ("summary", "impact", "root_cause_text")
 MAX_FIELD_CHARS = 600
+ADVICE_KEY = "order"
 
 NUMBER = re.compile(r"(?<![\w.])\d+(?:\.\d+)?")
 # Hyphenated tokens are treated as identifiers (services, alert ids, runbook ids, people).
@@ -119,3 +120,33 @@ def guard_narrative(reply_text: str, facts: dict) -> GuardResult:
     if found:
         return _reject(found)
     return GuardResult(ok=True, data={k: data[k] for k in NARRATIVE_KEYS})
+
+
+def guard_advice(reply_text: str, allowed_tools: tuple[str, ...]) -> GuardResult:
+    """Validate an advisor reply: `{"order": [tool, ...]}` naming only allowed tools, once each.
+
+    A partial list is padded with the remaining tools in the allowed (fixed) order, so the result
+    is always a permutation of `allowed_tools` and can only reorder calls, never add or drop one.
+    """
+    if not isinstance(reply_text, str) or not reply_text.strip():
+        return _reject("empty reply")
+    try:
+        data = json.loads(reply_text)
+    except ValueError:
+        return _reject("not valid JSON")
+    if not isinstance(data, dict):
+        return _reject("not a JSON object")
+    if set(data) != {ADVICE_KEY}:
+        return _reject(f"keys {sorted(data)} != {[ADVICE_KEY]}")
+    order = data[ADVICE_KEY]
+    if not isinstance(order, list) or not order:
+        return _reject(f"{ADVICE_KEY} is empty or not a list")
+    seen: list[str] = []
+    for name in order:
+        if not isinstance(name, str) or name not in allowed_tools:
+            return _reject(f"not an allowed tool: {name!r}")
+        if name in seen:
+            return _reject(f"duplicate tool: {name}")
+        seen.append(name)
+    padded = tuple(seen) + tuple(t for t in allowed_tools if t not in seen)
+    return GuardResult(ok=True, data={ADVICE_KEY: padded})
