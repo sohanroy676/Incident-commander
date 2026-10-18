@@ -44,12 +44,13 @@ from .report import (
     header,
     kv,
     m1_report,
+    m2_table,
     postmortem_decision,
     publish_decision,
     verdict_decision,
     verify_decision,
 )
-from .retrieval import StaticRanker
+from .retrieval import HybridRanker, StaticRanker
 from .tools import (
     get_dependencies,
     get_deployments,
@@ -210,7 +211,8 @@ def _case_lines(case: Case, *kinds: str) -> None:
 
 def _new_commander(world: SimWorld) -> Commander:
     script = {SECONDARY_ONCALL: (DEMO_SECONDARY_DELAY_S, "approve")}  # priya never answers
-    return Commander(world, StaticRanker(STATIC_RANKER_ORDER), ScriptedResponder(script))
+    ranker = HybridRanker(tuple(RUNBOOKS.values()))
+    return Commander(world, ranker, ScriptedResponder(script))
 
 
 def cmd_run(alert_id: str | None) -> int:
@@ -239,12 +241,9 @@ def cmd_run(alert_id: str | None) -> int:
         _m1_section(world, case.alert)
 
     print(header(2, M2_TITLE))
-    print(
-        kv(ranker=StaticRanker(STATIC_RANKER_ORDER).label)
-        + "   # real hybrid retrieval arrives in v0.5"
-    )
+    print(kv(ranker=HybridRanker.label))
     for case in cases:
-        _case_lines(case, "RANK")
+        print(m2_table(case.alert, case.candidates))
 
     print(header(3, M3_TITLE))
     for case in cases:

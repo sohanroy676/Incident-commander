@@ -283,8 +283,12 @@ class TestRunAll(unittest.TestCase):
         self.assertEqual(len(ids), 2)
         self.assertEqual(ids[0], ids[1])
 
-    def test_m2_labels_the_stub_and_m8_is_a_placeholder(self):
-        self.assertIn("ranker=STUB", self.first.stdout)
+    def test_m2_prints_hybrid_scores_and_m8_is_a_placeholder(self):
+        out = self.first.stdout
+        self.assertIn("ranker=HYBRID", out)
+        self.assertNotIn("ranker=STUB", out)
+        self.assertIn("runbook  bm25_rank char_rank fused_score", out)
+        self.assertEqual(out.count("top2_margin="), 3)
         self.assertIn("== M8 EVALUATION ==  not implemented in v0.4", self.first.stdout)
 
     def test_decision_lines_are_identical_and_output_matches_apart_from_timestamps(self):
