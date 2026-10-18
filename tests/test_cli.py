@@ -219,3 +219,104 @@ class TestLineHelpers(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+RUN_HEADERS = [
+    "== M1 SIGNAL INGESTION ==",
+    "== M2 RUNBOOK GROUNDING ==",
+    "== M3 INVESTIGATION ==",
+    "== M4 BLAST-RADIUS CLASSIFICATION ==",
+    "== M5 TIME-BOXED APPROVAL ==",
+    "== M6 VERIFIED RESOLUTION ==",
+    "== M7 POSTMORTEM DRAFT ==",
+    "== M8 EVALUATION ==",
+]
+EXEC_ID = r"exec-[0-9a-f]{10}"
+RUN_ALL_DECISIONS = [
+    r"DECISION verdict alert=ALRT-9001 verdict=matched runbook=RB-101 rounds=3",
+    r"DECISION verdict alert=ALRT-9002 verdict=matched runbook=RB-102 rounds=3",
+    r"DECISION verdict alert=ALRT-9003 verdict=no_confident_match runbook=none rounds=4 reason=all_refuted",
+    r"DECISION classify alert=ALRT-9001 severity_label=high action=rollback_deployment tier=high requires_approval=True",
+    r"DECISION classify alert=ALRT-9002 severity_label=high action=restart_service tier=low requires_approval=False",
+    r"DECISION page_check case=immediate window_s=0.3 escalated=False",
+    r"DECISION page_check case=after_sleep window_s=0.3 escalated=True from=engineer-priya to=engineer-devon",
+    r'DECISION page_check case=answered_in_time escalated=False reason="already resolved"',
+    r"DECISION approval alert=ALRT-9001 escalated=True approved_by=engineer-devon",
+    rf"DECISION execute alert=ALRT-9001 action=rollback_deployment status=executed execution_id={EXEC_ID}",
+    r"DECISION verify alert=ALRT-9001 status=resolved verified=True baseline_ms=180 observed_ms=182",
+    rf"DECISION execute alert=ALRT-9002 action=restart_service status=executed execution_id={EXEC_ID}",
+    rf"DECISION execute alert=ALRT-9002 action=restart_service status=already_executed execution_id={EXEC_ID}",
+    r"DECISION verify alert=ALRT-9002 status=resolved verified=True baseline_ms=180 observed_ms=195",
+    r"DECISION handoff alert=ALRT-9003 reason=no_confident_match",
+    r'DECISION verify alert=ALRT-9002 variant=fix_fails status=reopened verified=False baseline_ms=180 observed_ms=3900 reason="remediation ran but did not resolve the signal"',
+    r"DECISION postmortem alert=ALRT-9001 notified=\[\] published=False",
+    r"DECISION publish alert=ALRT-9001 published=True notified=\['oncall-channel'\]",
+]
+
+
+class TestRunAll(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.first = run("run", "--all")
+        cls.second = run("run", "--all")
+
+    def test_exits_zero_with_eight_headers_once_each_in_order(self):
+        self.assertEqual(self.first.returncode, 0, self.first.stderr)
+        headers = [
+            ln.split("  ")[0] for ln in self.first.stdout.splitlines() if ln.startswith("== M")
+        ]
+        self.assertEqual(headers, RUN_HEADERS)
+
+    def test_every_contract_decision_line_is_present_in_order(self):
+        lines = self.first.stdout.splitlines()
+        at = 0
+        for pattern in RUN_ALL_DECISIONS:
+            hit = next((i for i in range(at, len(lines)) if re.fullmatch(pattern, lines[i])), None)
+            self.assertIsNotNone(hit, f"missing or out of order: {pattern}")
+            at = hit
+
+    def test_retry_shares_the_execution_id(self):
+        ids = re.findall(
+            r"alert=ALRT-9002 action=restart_service status=\w+ execution_id=(\S+)",
+            self.first.stdout,
+        )
+        self.assertEqual(len(ids), 2)
+        self.assertEqual(ids[0], ids[1])
+
+    def test_m2_labels_the_stub_and_m8_is_a_placeholder(self):
+        self.assertIn("ranker=STUB", self.first.stdout)
+        self.assertIn("== M8 EVALUATION ==  not implemented in v0.4", self.first.stdout)
+
+    def test_decision_lines_are_identical_and_output_matches_apart_from_timestamps(self):
+        def decisions(text):
+            return [ln for ln in text.splitlines() if ln.startswith("DECISION")]
+
+        self.assertEqual(decisions(self.first.stdout), decisions(self.second.stdout))
+        self.assertEqual(strip_timestamps(self.first.stdout), strip_timestamps(self.second.stdout))
+
+    def test_log_text_is_never_printed(self):
+        self.assertNotIn("[INFO]", self.first.stdout)
+        self.assertNotIn("[WARN]", self.first.stdout)
+
+    def test_approval_really_waits_for_the_escalation(self):
+        t0 = time.monotonic()
+        run("run", "ALRT-9001")
+        self.assertGreaterEqual(time.monotonic() - t0, 0.4)  # 0.3 s primary window + 0.1 s devon
+
+
+class TestRunSingle(unittest.TestCase):
+    def test_single_alert_runs(self):
+        p = run("run", "ALRT-9003")
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertIn("DECISION handoff alert=ALRT-9003 reason=no_confident_match", p.stdout)
+        self.assertNotIn("variant=fix_fails", p.stdout)
+
+    def test_unknown_alert_exits_two_with_stderr_message(self):
+        p = run("run", "ALRT-0000")
+        self.assertEqual(p.returncode, 2)
+        self.assertEqual(p.stdout, "")
+        self.assertIn("unknown alert: ALRT-0000", p.stderr)
+
+    def test_needs_an_alert_or_all_but_not_both(self):
+        self.assertNotEqual(run("run").returncode, 0)
+        self.assertNotEqual(run("run", "ALRT-9001", "--all").returncode, 0)

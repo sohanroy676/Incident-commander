@@ -20,10 +20,12 @@ class CountingWorld(SimWorld):
     def __init__(self) -> None:
         super().__init__()
         self.calls: list[tuple] = []
+        self.outcomes: list[str] = []
 
     def apply_remediation(self, service, action, at, outcome="success"):
         super().apply_remediation(service, action, at, outcome)
         self.calls.append((service, action))
+        self.outcomes.append(outcome)
 
 
 def make():
@@ -33,6 +35,19 @@ def make():
 
 def token(action="rollback_deployment", service="checkout-service"):
     return ApprovalToken(action, service, "engineer-devon", 1.0)
+
+
+class TestOutcome(unittest.TestCase):
+    def test_outcome_reaches_the_world(self):
+        world = CountingWorld()
+        ex = Executor(world, DataClock(FIRED + 5.0), outcome="fix_fails")
+        ex.execute("restart_service", "inventory-service", "ALRT-9002", None)
+        self.assertEqual(world.outcomes, ["fix_fails"])
+
+    def test_default_outcome_is_success(self):
+        world, ex = make()
+        ex.execute("restart_service", "inventory-service", "ALRT-9002", None)
+        self.assertEqual(world.outcomes, ["success"])
 
 
 class TestIdempotency(unittest.TestCase):

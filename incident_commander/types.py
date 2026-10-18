@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 
 
@@ -100,3 +100,40 @@ class Execution:
     action: str
     service: str
     executed_at: float
+
+
+@dataclass(frozen=True)
+class Verification:
+    status: str  # "resolved" | "reopened"
+    verified: bool
+    metric: str
+    baseline: float | None
+    observed: float | None
+    reason: str | None = None
+
+
+@dataclass(frozen=True)
+class TraceEvent:
+    seq: int
+    kind: str
+    data_time: float  # simulated DataClock seconds
+    elapsed_s: float  # real seconds since process start
+    fields: tuple[tuple[str, object], ...]
+
+
+@dataclass(frozen=True)
+class PostmortemDraft:
+    """Pure data built from a trace; `published` and `notified` change only through publish()."""
+
+    summary: str
+    impact: str
+    detection: str
+    evidence: tuple[str, ...]
+    remediation: str
+    approval_history: tuple[str, ...]
+    verification: str
+    timeline: tuple[str, ...]
+    untrusted_log_excerpts: tuple[str, ...]
+    follow_ups: tuple[str, ...]
+    notified: list[str] = field(default_factory=list)
+    published: bool = False

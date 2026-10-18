@@ -66,3 +66,20 @@ reason. The golden set is never used to tune a threshold (DETAILED_ROADMAP secti
 - `APPROVAL_DEMO_SLEEP_S = 0.4`: the M5 demo sleeps 0.4 s against a 0.3 s page window, leaving a 0.1 s margin.
 - The remediation effects (195 / 3900 / 182 ms) and their 60 s delay are fixture data in `fixtures/services.py`.
 - Any approval reply other than "approve" yields no token (fail closed); "deny" ends the request at once.
+
+## Choices that go beyond PHASE5 (v0.4)
+
+- `verify` takes `service` and `metric` (not the whole `Alert`), so no summary or severity can reach it. A pure
+  `assess(metric, obs, executed_at, tolerance)` makes the decision and is what the 198.0 / 198.1 boundary tests call.
+- The verifier advances the DataClock to `executed_at + VERIFY_WINDOW_S` (300 s, simulated, no real sleep) before
+  re-querying, and uses the median of the window's points at or after `executed_at`. A metric with no tool in
+  `METRIC_TOOLS`, an errored or stale observation, or `as_of < executed_at` reopens with "no fresh post-fix data".
+- `Executor` takes an `outcome` ("success" | "fix_fails") and passes it to `SimWorld.apply_remediation`.
+- `PostmortemDraft.notified` is a list so `notified == []` holds as the acceptance criterion states. The draft is
+  built before the final DRAFTED state event, so its timeline ends at the last pre-draft event.
+- `run --all` runs every case first (real clock), then prints M1-M8 from the recorded cases, so each header appears
+  once. The `fix_fails` variant runs on a fresh `SimWorld` because the first run already fixed the service.
+- M6 prints the ALRT-9003 handoff; M7 prints a postmortem decision line for all three cases but publishes only
+  ALRT-9001, and shows counts for log excerpts instead of their text.
+- `DEMO_SECONDARY_DELAY_S = 0.1` (devon approves 0.1 s after being paged; priya never answers), `VERIFY_WINDOW_S = 300`,
+  `PUBLISH_RECIPIENTS = ("oncall-channel",)` and `METRIC_TOOLS` live in `config.py`.

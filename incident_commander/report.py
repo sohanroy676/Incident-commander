@@ -3,13 +3,26 @@
 from __future__ import annotations
 
 from .clocks import ControlClock
+from .executor import ExecutionResult
 from .predicates import recent_median
-from .types import Alert, Classification, Observation, Verdict
+from .types import (
+    Alert,
+    Classification,
+    Observation,
+    PostmortemDraft,
+    TraceEvent,
+    Verdict,
+    Verification,
+)
 
 M1_TITLE = "SIGNAL INGESTION"
+M2_TITLE = "RUNBOOK GROUNDING"
 M3_TITLE = "INVESTIGATION"
 M4_TITLE = "BLAST-RADIUS CLASSIFICATION"
 M5_TITLE = "TIME-BOXED APPROVAL"
+M6_TITLE = "VERIFIED RESOLUTION"
+M7_TITLE = "POSTMORTEM DRAFT"
+M8_TITLE = "EVALUATION"
 EXECUTION_HEADER = "== EXECUTION (idempotency demo) =="
 
 
@@ -64,9 +77,9 @@ def summarize(obs: Observation) -> str:
     return f"lines={len(obs.data)}   (content not shown here: untrusted)"
 
 
-def m1_report(alert: Alert, observations: list[Observation]) -> str:
-    lines = [
-        header(1, M1_TITLE),
+def m1_report(alert: Alert, observations: list[Observation], with_header: bool = True) -> str:
+    lines = [header(1, M1_TITLE)] if with_header else []
+    lines += [
         kv(
             alert=alert.alert_id,
             service=alert.service,
@@ -121,3 +134,47 @@ def classify_decision(alert: Alert, c: Classification) -> str:
         tier=c.tier,
         requires_approval=c.requires_approval,
     )
+
+
+def event_line(event: TraceEvent) -> str:
+    """A recorded trace event as a `[t+…s]` line."""
+    return trace_line(event.elapsed_s, event.kind, **dict(event.fields))
+
+
+def approval_decision(alert_id: str, escalated: bool, approved_by: str) -> str:
+    return decision("approval", alert=alert_id, escalated=escalated, approved_by=approved_by)
+
+
+def execute_decision(alert_id: str, action: str, result: ExecutionResult) -> str:
+    return decision(
+        "execute",
+        alert=alert_id,
+        action=action,
+        status=result.status,
+        execution_id=result.execution_id,
+    )
+
+
+def verify_decision(alert_id: str, v: Verification, variant: str | None = None) -> str:
+    fields: dict[str, object] = {"alert": alert_id}
+    if variant:
+        fields["variant"] = variant
+    fields.update(status=v.status, verified=v.verified)
+    fields.update(baseline_ms=v.baseline, observed_ms=v.observed)
+    if v.reason:
+        fields["reason"] = v.reason
+    return decision("verify", **fields)
+
+
+def handoff_decision(alert_id: str, reason: str) -> str:
+    return decision("handoff", alert=alert_id, reason=reason)
+
+
+def postmortem_decision(alert_id: str, draft: PostmortemDraft) -> str:
+    return decision(
+        "postmortem", alert=alert_id, notified=draft.notified, published=draft.published
+    )
+
+
+def publish_decision(alert_id: str, draft: PostmortemDraft) -> str:
+    return decision("publish", alert=alert_id, published=draft.published, notified=draft.notified)

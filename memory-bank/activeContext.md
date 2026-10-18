@@ -1,7 +1,8 @@
 # Active Context
 
 ## Current focus
-v0.3 Gates is done: merged to main locally (no PR), pushed, CI green, tag `v0.3`. Starting v0.4 MVP-1 next.
+v0.4 MVP-1 is implemented and committed on branch `v0.4-mvp1` (6 commits, tests/lint/G1 green, `traces/v0.4.txt` saved).
+Not yet merged, pushed or tagged: needs the user's approval for each step.
 
 ## Recent decisions
 - Specs came from docs/PHASE1-5.md (now committed). Deviations from PHASE5 are listed in docs/THRESHOLDS.md
@@ -24,8 +25,12 @@ v0.3 Gates is done: merged to main locally (no PR), pushed, CI green, tag `v0.3`
   with `min(elapsed, deadline)` so a late tick cannot drop an in-time answer.
 - Gotcha: never call `SimWorld.latency_points` with start=0 in tests (builds ~29M grid points); use windows near `fired_at`.
 
+- v0.4 choices are in docs/THRESHOLDS.md ("Choices that go beyond PHASE5 (v0.4)"): `verify(service, metric, ...)` plus pure `assess`,
+  `Executor(outcome=...)`, `run --all` runs all cases first and prints sections from them, `notified` is a list.
+- Gotcha: Bash heredocs fail with apostrophes (use the Write tool); never write temp files to `/`, use the scratchpad dir.
+
 ## Blockers / open questions
 - Install git-cliff (or similar) to regenerate CHANGELOG.md? (none installed; CHANGELOG still empty)
 
 ## Next step
-v0.4 (`v0.4-mvp1`): verifier, postmortem, Commander state machine, `run --all`.
+Merge `v0.4-mvp1` (approval needed), push, wait for CI, tag `v0.4`; switch CI to `dod trace` once it exists. Then v0.5 (`v0.5-retrieval`): hybrid ranker.
