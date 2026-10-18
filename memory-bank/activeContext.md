@@ -1,7 +1,7 @@
 # Active Context
 
 ## Current focus
-v0.4 MVP-1 is done: merged to main locally (no PR), pushed, CI green, tag `v0.4`. Starting v0.5 Hybrid retrieval next.
+v0.5 Hybrid retrieval is implemented on branch `v0.5-retrieval` (not merged, pushed or tagged yet). v0.4 is tagged.
 
 ## Recent decisions
 - Specs came from docs/PHASE1-5.md (now committed). Deviations from PHASE5 are listed in docs/THRESHOLDS.md
@@ -31,6 +31,8 @@ v0.4 MVP-1 is done: merged to main locally (no PR), pushed, CI green, tag `v0.4`
 ## Blockers / open questions
 - Install git-cliff (or similar) to regenerate CHANGELOG.md? (none installed; CHANGELOG still empty)
 
+- v0.5 choices are in docs/THRESHOLDS.md ("Choices that go beyond PHASE5 (v0.5)"). Gotcha: this machine has no `.venv` and the registered Python 3.12 is missing; v0.5 ran on system Python 3.14.2 / scikit-learn 1.8.0.
+
 ## Next step
-v0.5 (`v0.5-retrieval`): HybridRanker (BM25 + char TF-IDF + RRF k=60) replacing the stub in `run --all` M2; real runbook text and follow-ups.
+Merge v0.5 (ask first), push, wait for CI, tag `v0.5`; then v0.6 Evaluation.
 Switch CI to `dod trace` / `dod all` when those gates exist (v1.0).

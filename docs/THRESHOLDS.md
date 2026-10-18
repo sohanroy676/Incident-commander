@@ -19,6 +19,9 @@ reason. The golden set is never used to tune a threshold (DETAILED_ROADMAP secti
 | `VERIFY_TOLERANCE` | 1.10 | 195/180 = 1.083 passes, 3900/180 = 21.7 fails |
 | `ROUND_BUDGET` | 4 | equals the number of evidence tools |
 | `APPROVAL_DEADLINE_S` | 0.3 | per page, demo value |
+| `RRF_K` / `BM25_K1` / `BM25_B` | 60 / 1.5 / 0.75 | v0.5 retrieval constants from PHASE5 7.4 |
+| `CHAR_NGRAM_RANGE` | (2, 4) | v0.5 `char_wb` n-gram sizes (choice beyond PHASE5) |
+| `SMALL_MARGIN` | 0.001 | v0.5 top-2 fused gap under this prints the "small margin" note; real value 0.000529 |
 | `STATIC_RANKER_ORDER` | RB-102, RB-101, RB-104, RB-103 | v0.2 stub order, deliberately wrong-first so evidence visibly overrides rank |
 
 ## Simulation parameters (v0.1)
@@ -58,7 +61,7 @@ reason. The golden set is never used to tune a threshold (DETAILED_ROADMAP secti
 - `latency_step_change` requires every point before the biggest jump to stay within `LATENCY_NORMAL_RATIO` of baseline.
 - ROUND lines print the tool's predicates that appear in a hypothesis still alive at the start of the round
   (all of them in exploratory mode); `RoundRecord.values` keeps every predicate for the tool.
-- Runbook `text` is a placeholder until v0.5; `follow_ups` is empty.
+- Runbook `text` was a placeholder until v0.5 (now real, see the v0.5 section).
 
 ## Choices that go beyond PHASE5 (v0.3)
 
@@ -83,3 +86,14 @@ reason. The golden set is never used to tune a threshold (DETAILED_ROADMAP secti
   ALRT-9001, and shows counts for log excerpts instead of their text.
 - `DEMO_SECONDARY_DELAY_S = 0.1` (devon approves 0.1 s after being paged; priya never answers), `VERIFY_WINDOW_S = 300`,
   `PUBLISH_RECIPIENTS = ("oncall-channel",)` and `METRIC_TOOLS` live in `config.py`.
+
+## Choices that go beyond PHASE5 (v0.5)
+
+- BM25 tokens are lowercase `\w+` words; IDF is `ln(1 + (N - df + 0.5) / (df + 0.5))` so it is never negative.
+- Ties in either ranking keep corpus order, so output is deterministic. All-zero scores (empty or unknown query) give corpus order.
+- `margin` is the fused-score gap between rank 1 and rank 2. With 4 runbooks and agreeing BM25 and char ranks it is
+  2 * (1/61 - 1/62) = 0.000529 for all three alerts, so "small" is a ratio of ranks, not of evidence strength.
+- AC-16 result: RB-101 and RB-102 are the top 2 for ALRT-9001 and ALRT-9002; RB-104 ranks first for ALRT-9003.
+- `run --all` M2 uses `HybridRanker`; `investigate` (M3 command) and the investigator tests still use the labelled `StaticRanker`.
+- Runbook `text` and `follow_ups` are real. The `traces/v0.5.txt` header records the Python and scikit-learn versions
+  of the real run (3.14.2 / 1.8.0: the 3.12 interpreter was missing from this machine, so the dev `.venv` was not rebuilt).

@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+from . import config
 from .clocks import ControlClock
 from .executor import ExecutionResult
 from .predicates import recent_median
+from .retrieval import HybridRanker
 from .types import (
     Alert,
+    Candidate,
     Classification,
     Observation,
     PostmortemDraft,
@@ -134,6 +137,24 @@ def classify_decision(alert: Alert, c: Classification) -> str:
         tier=c.tier,
         requires_approval=c.requires_approval,
     )
+
+
+def m2_table(alert: Alert, candidates: list[Candidate]) -> str:
+    """M2 grounding table: per-runbook BM25 rank, char rank, fused score, then the top-2 margin."""
+    lines = [
+        kv(alert=alert.alert_id, query=alert.summary),
+        f"{'runbook':<8} {'bm25_rank':>9} {'char_rank':>9} {'fused_score':>11}",
+    ]
+    for c in candidates:
+        lines.append(
+            f"{c.runbook_id:<8} {c.ranks['bm25']:>9} {c.ranks['char']:>9} {c.fused_score:>11.6f}"
+        )
+    margin = HybridRanker.margin(candidates)
+    note = ""
+    if margin < config.SMALL_MARGIN:
+        note = "   (small margin: retrieval cannot separate the top candidates)"
+    lines.append(f"top2_margin={margin:.6f}{note}")
+    return "\n".join(lines)
 
 
 def event_line(event: TraceEvent) -> str:

@@ -1,0 +1,104 @@
+# python 3.14.2 scikit-learn 1.8.0
+== M1 SIGNAL INGESTION ==
+alert=ALRT-9001 service=checkout-service fired_at=1760000100 severity_label=high
+tool             age_s  max_staleness_s  fresh summary
+get_latency      3.0    60               True  median_5m_ms=1440 baseline_ms=180
+get_error_rate   3.0    60               True  median_5m=0.011 baseline=0.010 ratio=1.1
+get_deployments  10.0   300              True  count=1 latest=v2.14.0 before_alert_s=720
+get_dependencies 30.0   3600             True  payment-service(lat=1.0,err=1.0) inventory-service(lat=1.0,err=1.0)
+get_logs         5.0    120              True  lines=24   (content not shown here: untrusted)
+alert=ALRT-9002 service=inventory-service fired_at=1760086500 severity_label=high
+tool             age_s  max_staleness_s  fresh summary
+get_latency      3.0    60               True  median_5m_ms=1075 baseline_ms=180
+get_error_rate   3.0    60               True  median_5m=0.010 baseline=0.010 ratio=1
+get_deployments  10.0   300              True  count=1 latest=v1.9.3 before_alert_s=18000
+get_dependencies 30.0   3600             True  none
+get_logs         5.0    120              True  lines=24   (content not shown here: untrusted)
+alert=ALRT-9003 service=notification-service fired_at=1760172900 severity_label=medium
+tool             age_s  max_staleness_s  fresh summary
+get_latency      3.0    60               True  median_5m_ms=185 baseline_ms=180
+get_error_rate   3.0    60               True  median_5m=0.050 baseline=0.010 ratio=5
+get_deployments  10.0   300              True  count=0 latest=none
+get_dependencies 30.0   3600             True  email-gateway(lat=1.0,err=1.0)
+get_logs         5.0    120              True  lines=24   (content not shown here: untrusted)
+== M2 RUNBOOK GROUNDING ==
+ranker=HYBRID
+alert=ALRT-9001 query="checkout latency spike, error rate normal"
+runbook  bm25_rank char_rank fused_score
+RB-101           1         1    0.032787
+RB-102           2         2    0.032258
+RB-104           3         3    0.031746
+RB-103           4         4    0.031250
+top2_margin=0.000529   (small margin: retrieval cannot separate the top candidates)
+alert=ALRT-9002 query="inventory latency spike, error rate normal"
+runbook  bm25_rank char_rank fused_score
+RB-101           1         1    0.032787
+RB-102           2         2    0.032258
+RB-104           3         3    0.031746
+RB-103           4         4    0.031250
+top2_margin=0.000529   (small margin: retrieval cannot separate the top candidates)
+alert=ALRT-9003 query="notification error rate elevated, latency normal"
+runbook  bm25_rank char_rank fused_score
+RB-104           1         1    0.032787
+RB-101           2         2    0.032258
+RB-102           3         3    0.031746
+RB-103           4         4    0.031250
+top2_margin=0.000529   (small margin: retrieval cannot separate the top candidates)
+== M3 INVESTIGATION ==
+alert=ALRT-9001
+[t+2.84s] ROUND n=1 tool=get_latency mode=coverage fresh=True latency_elevated=TRUE latency_step_change=TRUE latency_gradual_trend=FALSE latency_normal=FALSE
+[t+2.84s] HYPOTHESES RB-101=open RB-102=refuted RB-103=open RB-104=refuted
+[t+2.84s] ROUND n=2 tool=get_error_rate mode=coverage fresh=True error_normal=TRUE error_elevated=FALSE
+[t+2.84s] HYPOTHESES RB-101=open RB-102=refuted RB-103=refuted RB-104=refuted
+[t+2.84s] ROUND n=3 tool=get_deployments mode=coverage fresh=True deploy_in_window=TRUE
+[t+2.84s] HYPOTHESES RB-101=confirmed RB-102=refuted RB-103=refuted RB-104=refuted
+DECISION verdict alert=ALRT-9001 verdict=matched runbook=RB-101 rounds=3
+alert=ALRT-9002
+[t+3.25s] ROUND n=1 tool=get_latency mode=coverage fresh=True latency_elevated=TRUE latency_step_change=FALSE latency_gradual_trend=TRUE latency_normal=FALSE
+[t+3.25s] HYPOTHESES RB-101=refuted RB-102=open RB-103=open RB-104=refuted
+[t+3.25s] ROUND n=2 tool=get_error_rate mode=coverage fresh=True error_normal=TRUE error_elevated=FALSE
+[t+3.25s] HYPOTHESES RB-101=refuted RB-102=open RB-103=refuted RB-104=refuted
+[t+3.25s] ROUND n=3 tool=get_deployments mode=coverage fresh=True no_deploy_in_window=TRUE
+[t+3.25s] HYPOTHESES RB-101=refuted RB-102=confirmed RB-103=refuted RB-104=refuted
+DECISION verdict alert=ALRT-9002 verdict=matched runbook=RB-102 rounds=3
+alert=ALRT-9003
+[t+3.25s] ROUND n=1 tool=get_latency mode=coverage fresh=True latency_elevated=FALSE latency_step_change=FALSE latency_gradual_trend=FALSE latency_normal=TRUE
+[t+3.25s] HYPOTHESES RB-101=refuted RB-102=refuted RB-103=refuted RB-104=open
+[t+3.25s] ROUND n=2 tool=get_error_rate mode=coverage fresh=True error_elevated=TRUE
+[t+3.25s] HYPOTHESES RB-101=refuted RB-102=refuted RB-103=refuted RB-104=open
+[t+3.25s] ROUND n=3 tool=get_deployments mode=coverage fresh=True deploy_in_window=FALSE
+[t+3.25s] HYPOTHESES RB-101=refuted RB-102=refuted RB-103=refuted RB-104=refuted
+[t+3.25s] ROUND n=4 tool=get_dependencies mode=exploratory fresh=True dependency_unhealthy=FALSE
+[t+3.25s] HYPOTHESES RB-101=refuted RB-102=refuted RB-103=refuted RB-104=refuted
+DECISION verdict alert=ALRT-9003 verdict=no_confident_match runbook=none rounds=4 reason=all_refuted
+== M4 BLAST-RADIUS CLASSIFICATION ==
+DECISION classify alert=ALRT-9001 severity_label=high action=rollback_deployment tier=high requires_approval=True
+DECISION classify alert=ALRT-9002 severity_label=high action=restart_service tier=low requires_approval=False
+== M5 TIME-BOXED APPROVAL ==
+[t+0.00s] PAGE target=engineer-priya window_s=0.3
+DECISION page_check case=immediate window_s=0.3 escalated=False
+[t+0.00s] SLEEP real_seconds=0.4
+DECISION page_check case=after_sleep window_s=0.3 escalated=True from=engineer-priya to=engineer-devon
+DECISION page_check case=answered_in_time escalated=False reason="already resolved"
+[t+2.84s] PAGE target=engineer-priya deadline_s=0.3
+[t+3.25s] ESCALATE from=engineer-priya to=engineer-devon
+DECISION approval alert=ALRT-9001 escalated=True approved_by=engineer-devon
+== M6 VERIFIED RESOLUTION ==
+DECISION execute alert=ALRT-9001 action=rollback_deployment status=executed execution_id=exec-03f8336582
+DECISION verify alert=ALRT-9001 status=resolved verified=True baseline_ms=180 observed_ms=182
+DECISION execute alert=ALRT-9002 action=restart_service status=executed execution_id=exec-e11ae95dee
+DECISION execute alert=ALRT-9002 action=restart_service status=already_executed execution_id=exec-e11ae95dee
+DECISION verify alert=ALRT-9002 status=resolved verified=True baseline_ms=180 observed_ms=195
+DECISION handoff alert=ALRT-9003 reason=no_confident_match
+DECISION verify alert=ALRT-9002 variant=fix_fails status=reopened verified=False baseline_ms=180 observed_ms=3900 reason="remediation ran but did not resolve the signal"
+DECISION handoff alert=ALRT-9002 reason=reopened
+== M7 POSTMORTEM DRAFT ==
+DECISION postmortem alert=ALRT-9001 notified=[] published=False
+alert=ALRT-9001 timeline_events=22 log_excerpts=24
+DECISION postmortem alert=ALRT-9002 notified=[] published=False
+alert=ALRT-9002 timeline_events=18 log_excerpts=24
+DECISION postmortem alert=ALRT-9003 notified=[] published=False
+alert=ALRT-9003 timeline_events=15 log_excerpts=24
+[t+3.76s] PUBLISH alert=ALRT-9001 published=True notified=['oncall-channel']
+DECISION publish alert=ALRT-9001 published=True notified=['oncall-channel']
+== M8 EVALUATION ==  not implemented in v0.4
