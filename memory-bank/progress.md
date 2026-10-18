@@ -17,4 +17,4 @@
 
 ## In progress
 
-- v1.1 Extension scaffold (`ic_plus`, branch `v1.1-extension`): planned, not started on main yet.
+- v1.1 Extension scaffold (branch `v1.1-extension`; NOT yet merged, pushed or tagged): `ic_plus/` (`__main__` with `run [ALERT|--all] --llm off --approver scripted|cli [--deadline]` and `scenario <name>|all`, `approver_cli.CliResponder`, `scenarios.py`: stale_data, tool_failure, fix_fails, approval_expired, three injection variants, unknown_action), 37 tests in `tests_plus/` (about 108 s), real `traces/v1.1.txt` (DECISION lines identical to `traces/run.txt`). Graded suite 301 tests OK, `dod all` G1-G6 PASS with `ic_plus` present (X1), `git diff v1.0 -- incident_commander/` empty, ruff clean. `.env.example` committed (empty LLM_BASE_URL, LLM_MODEL, LLM_API_KEY). Awaiting your approval to merge locally (--no-ff), push, wait for CI, tag `v1.1`. Next: v1.2 LLM client, guard, narrator. 2026-10-18

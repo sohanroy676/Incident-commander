@@ -38,5 +38,6 @@ v1.0 Graded release is merged to main, pushed, CI green and tagged `v1.0`; `inci
 - v0.6 choices are in docs/THRESHOLDS.md ("Choices that go beyond PHASE5 (v0.6)"): golden services in `fixtures/golden.py`, `SimWorld(planted_logs=)` instead of a `Commander.run` parameter, `golden_world()` for evaluation. `.venv` on Python 3.12.10 / scikit-learn 1.9.1 works again.
 
 ## Next step
-Start v1.1 Extension scaffold (`ic_plus`) on branch `v1.1-extension`.
+v1.1 is built on branch `v1.1-extension` (4 commits, not merged, pushed or tagged). Ask first: merge --no-ff, push, wait for CI (extension tests now run), tag `v1.1`. Then v1.2 (LLM client, guard, narrator; `--llm local|hosted`, keys in `.env`; `.env.example` already committed).
+v1.1 choices are in docs/THRESHOLDS.md ("Choices that go beyond PHASE5 (v1.1)"): subcommand CLI, `--llm` accepted before or after the subcommand, scripted run delegates to graded `cmd_run`.
 The tests_plus guard in ci.yml stays until v1.1.

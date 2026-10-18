@@ -41,7 +41,7 @@ jobs:
       - name: Format check
         run: ruff format --check .
 
-      # The tests_plus guard stays until the extension exists (v1.1).
+      # The extension tests run whenever tests_plus/ exists (since v1.1).
       - name: Unit tests (graded build)
         run: python -m unittest discover -s tests -v
 
