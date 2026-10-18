@@ -1,4 +1,5 @@
-"""CLI: python -m ic_plus run <ALERT>|--all | scenario <name>|all   [--llm off|local|hosted]."""
+"""CLI: python -m ic_plus run <ALERT>|--all | explain <ALERT> <question> | scenario <name>|all
+[--llm off|local|hosted]."""
 
 from __future__ import annotations
 
@@ -15,8 +16,9 @@ from incident_commander.world import SimWorld
 
 from .approver_cli import CliResponder
 from .envfile import load_env
+from .explainer import FALLBACK_LABEL, clean_question, explain, template_answer
 from .llm_client import LLMClient
-from .narrator import UNAVAILABLE_LINE, narrate
+from .narrator import UNAVAILABLE_LINE, build_facts, narrate
 from .scenarios import SCENARIOS, _commander
 
 LOCAL_URL = "http://localhost:11434/v1"
@@ -87,6 +89,29 @@ def _run_cli(alert_id: str, deadline_s: float | None, args: argparse.Namespace) 
     return 0
 
 
+def _explain(args: argparse.Namespace) -> int:
+    """Answer a question about one finished case; the LLM text is labelled and never a decision."""
+    world = SimWorld()
+    if args.alert_id not in world.alert_ids():
+        print(
+            f"unknown alert: {args.alert_id} (known: {', '.join(world.alert_ids())})",
+            file=sys.stderr,
+        )
+        return 2
+    question = clean_question(args.question)
+    if not question:
+        print("explain needs a non-empty question", file=sys.stderr)
+        return 2
+    case = _commander(SimWorld()).run(world.alert(args.alert_id))
+    if args.llm == "off":
+        print(f"{FALLBACK_LABEL} {template_answer(build_facts(case))}")
+    else:
+        for line in explain(case, question, _make_client(args)).lines:
+            print(line)
+    _banner(args.llm, "scripted")
+    return 0
+
+
 def _run_scenarios(name: str) -> int:
     names = list(SCENARIOS) if name == "all" else [name]
     ok = True
@@ -127,11 +152,18 @@ def main(argv: list[str] | None = None) -> int:
     run_cmd.add_argument("--all", action="store_true", help="run all three demo alerts")
     run_cmd.add_argument("--approver", choices=("scripted", "cli"), default="scripted")
     run_cmd.add_argument("--deadline", type=float, help="page deadline in seconds (cli approver)")
+    explain_cmd = sub.add_parser(
+        "explain", parents=[after], help="ask why the agent did what it did on one alert"
+    )
+    explain_cmd.add_argument("alert_id")
+    explain_cmd.add_argument("question")
     scenario = sub.add_parser("scenario", parents=[after], help="one extra scenario, or all")
     scenario.add_argument("name", choices=(*SCENARIOS, "all"))
     args = parser.parse_args(argv)
     if args.command == "scenario":
         return _run_scenarios(args.name)
+    if args.command == "explain":
+        return _explain(args)
     if args.all == (args.alert_id is not None):
         parser.error("run needs exactly one of an alert id or --all")
     if args.deadline is not None and (args.approver != "cli" or args.deadline <= 0):

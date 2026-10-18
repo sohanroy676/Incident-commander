@@ -18,6 +18,8 @@ from incident_commander.fixtures.services import SERVICES
 NARRATIVE_KEYS = ("summary", "impact", "root_cause_text")
 MAX_FIELD_CHARS = 600
 ADVICE_KEY = "order"
+ANSWER_KEY = "answer"
+MAX_ANSWER_CHARS = 600
 
 NUMBER = re.compile(r"(?<![\w.])\d+(?:\.\d+)?")
 # Hyphenated tokens are treated as identifiers (services, alert ids, runbook ids, people).
@@ -83,6 +85,22 @@ def _instruction_like(text: str) -> str | None:
     return None
 
 
+def _ungrounded(text: str, facts: dict) -> str | None:
+    """Why `text` is not safe to show next to `facts`, or None: numbers, names, instructions."""
+    facts_text = _facts_text(facts)
+    extra = _numbers(text) - _numbers(facts_text)
+    if extra:
+        return f"numbers not in the facts: {sorted(extra)}"
+    allowed = facts_text.lower()
+    for token in IDENTIFIER.findall(text):
+        if token.lower() not in allowed:
+            return f"identifier not in the facts: {token}"
+    for word in set(WORD.findall(text.lower())):
+        if word in KNOWN_NAMES and word not in allowed:
+            return f"name not in the facts: {word}"
+    return _instruction_like(text)
+
+
 def guard_narrative(reply_text: str, facts: dict) -> GuardResult:
     """Validate a narrator reply against the trace facts it was built from."""
     if not isinstance(reply_text, str) or not reply_text.strip():
@@ -102,24 +120,23 @@ def guard_narrative(reply_text: str, facts: dict) -> GuardResult:
         if len(value) > MAX_FIELD_CHARS:
             return _reject(f"{key} longer than {MAX_FIELD_CHARS} characters")
 
-    text = " ".join(data[k] for k in NARRATIVE_KEYS)
-    facts_text = _facts_text(facts)
-    extra = _numbers(text) - _numbers(facts_text)
-    if extra:
-        return _reject(f"numbers not in the facts: {sorted(extra)}")
-
-    allowed = facts_text.lower()
-    for token in IDENTIFIER.findall(text):
-        if token.lower() not in allowed:
-            return _reject(f"identifier not in the facts: {token}")
-    for word in set(WORD.findall(text.lower())):
-        if word in KNOWN_NAMES and word not in allowed:
-            return _reject(f"name not in the facts: {word}")
-
-    found = _instruction_like(text)
-    if found:
-        return _reject(found)
+    problem = _ungrounded(" ".join(data[k] for k in NARRATIVE_KEYS), facts)
+    if problem:
+        return _reject(problem)
     return GuardResult(ok=True, data={k: data[k] for k in NARRATIVE_KEYS})
+
+
+def guard_explanation(reply_text: str, facts: dict) -> GuardResult:
+    """Validate an explainer reply: plain text under the length cap, grounded in the facts."""
+    if not isinstance(reply_text, str) or not reply_text.strip():
+        return _reject("empty reply")
+    text = reply_text.strip()
+    if len(text) > MAX_ANSWER_CHARS:
+        return _reject(f"answer longer than {MAX_ANSWER_CHARS} characters")
+    problem = _ungrounded(text, facts)
+    if problem:
+        return _reject(problem)
+    return GuardResult(ok=True, data={ANSWER_KEY: text})
 
 
 def guard_advice(reply_text: str, allowed_tools: tuple[str, ...]) -> GuardResult:
