@@ -1,7 +1,7 @@
 # Active Context
 
 ## Current focus
-v1.0 Graded release is implemented on branch `v1.0-graded` (not merged, pushed or tagged yet). v0.6 is tagged.
+v1.0 Graded release is merged to main, pushed, CI green and tagged `v1.0`; `incident_commander/` is frozen. Next: v1.1 Extension scaffold.
 
 ## Recent decisions
 - Specs came from docs/PHASE1-5.md (now committed). Deviations from PHASE5 are listed in docs/THRESHOLDS.md
@@ -38,5 +38,5 @@ v1.0 Graded release is implemented on branch `v1.0-graded` (not merged, pushed o
 - v0.6 choices are in docs/THRESHOLDS.md ("Choices that go beyond PHASE5 (v0.6)"): golden services in `fixtures/golden.py`, `SimWorld(planted_logs=)` instead of a `Commander.run` parameter, `golden_world()` for evaluation. `.venv` on Python 3.12.10 / scikit-learn 1.9.1 works again.
 
 ## Next step
-Merge v1.0 (ask first), push, wait for CI (now runs `dod all`), tag `v1.0`; then freeze `incident_commander/` and start v1.1 Extension scaffold (`ic_plus`).
+Start v1.1 Extension scaffold (`ic_plus`) on branch `v1.1-extension`.
 The tests_plus guard in ci.yml stays until v1.1.
