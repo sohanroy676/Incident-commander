@@ -6,6 +6,7 @@ import tempfile
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
+from unittest import mock
 
 import incident_commander
 from incident_commander import dod
@@ -184,6 +185,26 @@ class TestRealRun(unittest.TestCase):
     def test_repro_rejects_empty_output(self):
         with redirect_stdout(io.StringIO()):
             self.assertEqual(dod.repro(""), 1)
+
+
+class TestAllGate(unittest.TestCase):
+    def run_all(self, results):
+        buf = io.StringIO()
+        with mock.patch.object(dod, "run_gates", return_value=results), redirect_stdout(buf):
+            rc = dod.main(["all"])
+        return rc, buf.getvalue()
+
+    def test_all_passing_exits_zero_with_a_table(self):
+        rc, out = self.run_all([(f"G{i}", True, "ok") for i in range(1, 7)])
+        self.assertEqual(rc, 0)
+        self.assertEqual(out.count("PASS"), 6)
+
+    def test_any_failing_gate_exits_non_zero_and_is_named(self):
+        results = [(f"G{i}", i != 4, "detail") for i in range(1, 7)]
+        rc, out = self.run_all(results)
+        self.assertEqual(rc, 1)
+        self.assertRegex(out, r"G4\s+FAIL")
+        self.assertEqual(out.count("PASS"), 5)
 
 
 if __name__ == "__main__":
