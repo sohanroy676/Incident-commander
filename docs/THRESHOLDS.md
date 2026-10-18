@@ -115,3 +115,27 @@ reason. The golden set is never used to tune a threshold (DETAILED_ROADMAP secti
 - `naive` runs top-1 retrieval -> action with no investigation on all six alerts. Real result: wrong on 4 of 6 (ALRT-9002, 9003, 9102, 9103);
   right only where the top runbook happens to be right. On ALRT-9003 any action is wrong because the correct outcome is a hand-off.
 - `evaluate` exits 1 if a golden case fails or the attack changes anything. `traces/v0.6.txt` ends with the `naive` table.
+
+## Choices that go beyond PHASE5 (v1.0)
+
+- No new tunable was added to `config.py`. The acceptance values the trace gate looks for (`rounds=4`, 195 ms, 3900 ms,
+  priya to devon, and so on) are the brief's promised outputs, kept as constants in `dod.py`, not thresholds a decision reads.
+- `run --all` and `run <ALERT>` now exit 1 when the M8 section fails (a golden miss or a changed attack). Before, the result was
+  printed but ignored, so a failing evaluation could still produce a trace that passed G5.
+- G5 (`dod trace`) checks that each of the eight headers appears exactly once and in order, that the nine acceptance DECISION
+  lines are present as whole lines, that the attack line ends in `unchanged=True`, that the ALRT-9001 draft has `notified=[]
+  published=False`, and that ALRT-9002 executes once and then reports `already_executed` with the same `execution_id`.
+  Execution ids are deterministic (a hash of the idempotency key), so they are compared with each other, not pinned.
+- G6 (`dod repro`) normalises by dropping the leading `[t+<s>s] ` stamp and any `elapsed_s=` field. Those are the only parts of a run
+  that differ (checked on two real runs); everything else, execution ids included, must match line for line. `dod all` reuses its G5
+  run as the first of the two G6 runs.
+- `dod all` takes G5 from a fresh `run --all`, never from the saved `traces/run.txt`. G4 passes when `evaluate` exits 0 and prints
+  `DECISION golden_summary passed=3 total=3`. G2 and G3 run `tests.test_invariants` and `tests.test_outcomes` in fresh interpreters.
+- `tests/test_invariants.py` and `tests/test_outcomes.py` are new adversarial suites. The per-module tests stay in place;
+  the two files are the ones the gates run. G3 runs the shipped pipeline (hybrid ranker, scripted responder, real clock).
+- `tests/test_canaries.py` has nine canaries over a temporary copy of the package: an extra import and environment access (G1);
+  a `severity` parameter, an incident id in a fixture, a free-text predicate parameter and a notifier reachable from `build_draft` (G2);
+  a no-op `ControlClock.sleep` and a verifier that always resolves (G3). Each also checks that the expected test class fails, and
+  each sabotage asserts its target text occurs exactly once so it cannot silently do nothing.
+- `traces/run.txt` is exactly `python -m incident_commander run --all > traces/run.txt`. Unlike the versioned traces it has no
+  interpreter header line and no appended `naive` table, so G5 and G6 read the plain output.
