@@ -2,7 +2,7 @@
 
 Series are pure functions of absolute time: no randomness and no incident
 lookup. A tool asks "service X between t1 and t2" and gets samples.
-Golden-set services (search, cart, auth, user-db) arrive with v0.6.
+Golden-set services live in fixtures/golden.py (v0.6).
 """
 
 from __future__ import annotations
@@ -76,6 +76,9 @@ REMEDIATION_DELAY_S = 60
 REMEDIATION_EFFECTS: dict[tuple[str, str], dict[str, float]] = {
     ("inventory-service", "restart_service"): {"success": 195.0, "fix_fails": 3900.0},
     ("checkout-service", "rollback_deployment"): {"success": 182.0, "fix_fails": 3900.0},
+    ("search-service", "rollback_deployment"): {"success": 98.0, "fix_fails": 2100.0},
+    ("cart-service", "restart_service"): {"success": 115.0, "fix_fails": 2400.0},
+    ("auth-service", "failover_dependency"): {"success": 84.0, "fix_fails": 1800.0},
 }
 REMEDIATION_OUTCOMES = ("success", "fix_fails")
 
