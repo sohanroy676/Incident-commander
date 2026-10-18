@@ -9,7 +9,7 @@ gates still pass, its trace is saved to traces/vX.Y.txt, and the git tag exists.
 - v0.1 Foundations (tagged `v0.1`): scaffold, clocks, types, config, simulated world, five tools, M1 output, G1 purity.
 - v0.2 Investigator (tagged `v0.2`): predicates, planner, bounded 4-round loop with a declared stub ranker, `investigate` command.
 - v0.3 Gates (tagged `v0.3`): blast-radius classifier, approval gate with real clock and escalation, idempotent executor, `gates` command.
-- v0.4 MVP-1 (branch `v0.4-mvp1`, tag pending): verifier, postmortem, Commander state machine, `run --all` end to end.
+- v0.4 MVP-1 (tagged `v0.4`): verifier, postmortem, Commander state machine, `run --all` end to end.
 
 ## Next
 - v0.6 Evaluation: golden set, differential planted-log attack, naive baseline.

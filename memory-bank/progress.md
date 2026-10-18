@@ -7,8 +7,8 @@
 
 - v0.3 Gates (branch `v0.3-gates` merged to main locally without a PR, pushed, CI green, tag `v0.3`): `blast_radius.py`, `approval.py` (Page, ScriptedResponder, ApprovalGate, ApprovalToken), `executor.py` (ledger, ApprovalRequired), `SimWorld.apply_remediation` + fixture effects, `gates` command. 154 unittest tests, ruff clean, G1 passes, `traces/v0.3.txt` from a real run. `ControlClock.sleep` now loops until the monotonic clock has advanced the full duration (Windows `time.sleep` returned ~9 ms early). 2026-10-18
 
-- v0.4 MVP-1 (branch `v0.4-mvp1`, not yet merged or tagged): `verifier.py`, `postmortem.py`, `commander.py` (state machine, Case, append-only Trace), `report.py` formatters, `run <ALERT>` / `run --all` (M1-M8, fix_fails variant, M8 placeholder). 201 unittest tests, ruff clean, G1 passes, `traces/v0.4.txt` from a real run. 2026-10-18
+- v0.4 MVP-1 (branch `v0.4-mvp1` merged to main locally without a PR, pushed, CI green, tag `v0.4`): `verifier.py`, `postmortem.py`, `commander.py` (state machine, Case, append-only Trace), `report.py` formatters, `run <ALERT>` / `run --all` (M1-M8, fix_fails variant, M8 placeholder). 201 unittest tests, ruff clean, G1 passes, `traces/v0.4.txt` from a real run. 2026-10-18
 
 ## In progress
 
-- v0.4 awaiting approval to merge locally (--no-ff), push, wait for CI, then tag `v0.4`.
+- Nothing. Next: v0.5 Hybrid retrieval (`v0.5-retrieval`).

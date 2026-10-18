@@ -1,8 +1,7 @@
 # Active Context
 
 ## Current focus
-v0.4 MVP-1 is implemented and committed on branch `v0.4-mvp1` (6 commits, tests/lint/G1 green, `traces/v0.4.txt` saved).
-Not yet merged, pushed or tagged: needs the user's approval for each step.
+v0.4 MVP-1 is done: merged to main locally (no PR), pushed, CI green, tag `v0.4`. Starting v0.5 Hybrid retrieval next.
 
 ## Recent decisions
 - Specs came from docs/PHASE1-5.md (now committed). Deviations from PHASE5 are listed in docs/THRESHOLDS.md
@@ -33,4 +32,5 @@ Not yet merged, pushed or tagged: needs the user's approval for each step.
 - Install git-cliff (or similar) to regenerate CHANGELOG.md? (none installed; CHANGELOG still empty)
 
 ## Next step
-Merge `v0.4-mvp1` (approval needed), push, wait for CI, tag `v0.4`; switch CI to `dod trace` once it exists. Then v0.5 (`v0.5-retrieval`): hybrid ranker.
+v0.5 (`v0.5-retrieval`): HybridRanker (BM25 + char TF-IDF + RRF k=60) replacing the stub in `run --all` M2; real runbook text and follow-ups.
+Switch CI to `dod trace` / `dod all` when those gates exist (v1.0).
