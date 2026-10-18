@@ -1,7 +1,7 @@
 # Active Context
 
 ## Current focus
-v0.6 Evaluation is merged to main, CI green, tagged `v0.6`. Next: v1.0 Graded release on branch `v1.0-graded`.
+v1.0 Graded release is implemented on branch `v1.0-graded` (not merged, pushed or tagged yet). v0.6 is tagged.
 
 ## Recent decisions
 - Specs came from docs/PHASE1-5.md (now committed). Deviations from PHASE5 are listed in docs/THRESHOLDS.md
@@ -28,6 +28,8 @@ v0.6 Evaluation is merged to main, CI green, tagged `v0.6`. Next: v1.0 Graded re
   `Executor(outcome=...)`, `run --all` runs all cases first and prints sections from them, `notified` is a list.
 - Gotcha: Bash heredocs fail with apostrophes (use the Write tool); never write temp files to `/`, use the scratchpad dir.
 
+- v1.0 choices are in docs/THRESHOLDS.md ("Choices that go beyond PHASE5 (v1.0)"): `run` exits 1 when M8 fails; `dod all` takes G5 from a fresh run, not the saved trace; G6 strips only `[t+..s]` and `elapsed_s=`; execution ids are deterministic. Gotchas: Bash heredocs with backslash-n escapes or apostrophes corrupt Python source (use the Write tool for patch scripts); the full suite now takes about 3 minutes (canaries and real-run tests).
+
 ## Blockers / open questions
 - Install git-cliff (or similar) to regenerate CHANGELOG.md? (none installed; CHANGELOG still empty)
 
@@ -36,5 +38,5 @@ v0.6 Evaluation is merged to main, CI green, tagged `v0.6`. Next: v1.0 Graded re
 - v0.6 choices are in docs/THRESHOLDS.md ("Choices that go beyond PHASE5 (v0.6)"): golden services in `fixtures/golden.py`, `SimWorld(planted_logs=)` instead of a `Commander.run` parameter, `golden_world()` for evaluation. `.venv` on Python 3.12.10 / scikit-learn 1.9.1 works again.
 
 ## Next step
-v1.0 Graded release: `dod trace|repro|all`, tests/test_invariants.py, test_outcomes.py, test_canaries.py, README, real traces/run.txt.
-Switch CI to `dod trace` / `dod all` when those gates exist (v1.0).
+Merge v1.0 (ask first), push, wait for CI (now runs `dod all`), tag `v1.0`; then freeze `incident_commander/` and start v1.1 Extension scaffold (`ic_plus`).
+The tests_plus guard in ci.yml stays until v1.1.

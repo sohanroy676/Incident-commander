@@ -306,8 +306,7 @@ def cmd_run(alert_id: str | None) -> int:
     print(publish_decision(first.alert.alert_id, published))
 
     print(header(8, M8_TITLE))
-    _m8_section()
-    return 0
+    return 0 if _m8_section() else 1
 
 
 def _m8_section() -> bool:

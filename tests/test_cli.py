@@ -329,3 +329,19 @@ class TestRunSingle(unittest.TestCase):
     def test_needs_an_alert_or_all_but_not_both(self):
         self.assertNotEqual(run("run").returncode, 0)
         self.assertNotEqual(run("run", "ALRT-9001", "--all").returncode, 0)
+
+
+class TestRunExitCode(unittest.TestCase):
+    def test_run_fails_when_the_evaluation_section_fails(self):
+        from contextlib import redirect_stdout
+        from io import StringIO
+        from unittest import mock
+
+        from incident_commander import __main__ as cli
+
+        for m8_ok, expected in ((False, 1), (True, 0)):
+            with (
+                mock.patch.object(cli, "_m8_section", return_value=m8_ok),
+                redirect_stdout(StringIO()),
+            ):
+                self.assertEqual(cli.cmd_run("ALRT-9003"), expected)

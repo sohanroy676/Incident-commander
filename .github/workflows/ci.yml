@@ -49,6 +49,5 @@ jobs:
         if: hashFiles('tests_plus/**') != ''
         run: python -m unittest discover -s tests_plus -v
 
-      # Only G1 exists so far; switch to `dod all` when v1.0 adds the other gates.
-      - name: Definition-of-Done gates (G1 purity)
-        run: python -m incident_commander.dod purity
+      - name: Definition-of-Done gates (G1-G6)
+        run: python -m incident_commander.dod all

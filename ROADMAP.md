@@ -3,7 +3,7 @@ Full detail per version: docs/DETAILED_ROADMAP.md. Each version is done when its
 gates still pass, its trace is saved to traces/vX.Y.txt, and the git tag exists.
 
 ## Now
-- v1.0 Graded release: not started on a branch yet (v0.6 is merged, CI green, tagged).
+- v1.0 Graded release is built on branch `v1.0-graded`; waiting for merge, push, CI and tag `v1.0`.
 
 ## Done
 - v0.1 Foundations (tagged `v0.1`): scaffold, clocks, types, config, simulated world, five tools, M1 output, G1 purity.
@@ -12,9 +12,9 @@ gates still pass, its trace is saved to traces/vX.Y.txt, and the git tag exists.
 - v0.4 MVP-1 (tagged `v0.4`): verifier, postmortem, Commander state machine, `run --all` end to end.
 - v0.5 Hybrid retrieval (tagged `v0.5`): BM25 + char TF-IDF fused with RRF, M2 table.
 - v0.6 Evaluation (merged to main, CI green, tagged `v0.6`): golden set 3/3, differential planted-log attack, naive baseline, `evaluate` and `naive`, real M8.
+- v1.0 Graded release (built, untagged): `dod trace|repro|all` (G1–G6), `tests/test_invariants.py`, `tests/test_outcomes.py`, `tests/test_canaries.py`, full README, real `traces/run.txt`, CI runs `dod all`.
 
 ## Next
-- v1.0 Graded release: G1–G6 via `dod all`, README, THRESHOLDS.md, saved traces/run.txt, gate canaries; graded package frozen.
 - v1.1 Extension scaffold: `ic_plus`, interactive CLI approver, extra scenarios, `--llm off`.
 - v1.2 LLM client, guard and narrator: stdlib OpenAI-compatible client, deterministic guard, AI-drafted narrative.
 - v1.3 Explainer, advisor and hosted provider; X3 decisions-unchanged proof.
