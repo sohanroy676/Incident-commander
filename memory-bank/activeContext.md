@@ -1,7 +1,7 @@
 # Active Context
 
 ## Current focus
-v1.0 Graded release is merged to main, pushed, CI green and tagged `v1.0`; `incident_commander/` is frozen. Next: v1.1 Extension scaffold.
+v1.1 Extension scaffold is merged to main, pushed, CI green (extension tests ran on Ubuntu) and tagged `v1.1`. `incident_commander/` stays frozen (tag `v1.0`). Next: v1.2.
 
 ## Recent decisions
 - Specs came from docs/PHASE1-5.md (now committed). Deviations from PHASE5 are listed in docs/THRESHOLDS.md
@@ -38,6 +38,7 @@ v1.0 Graded release is merged to main, pushed, CI green and tagged `v1.0`; `inci
 - v0.6 choices are in docs/THRESHOLDS.md ("Choices that go beyond PHASE5 (v0.6)"): golden services in `fixtures/golden.py`, `SimWorld(planted_logs=)` instead of a `Commander.run` parameter, `golden_world()` for evaluation. `.venv` on Python 3.12.10 / scikit-learn 1.9.1 works again.
 
 ## Next step
-v1.1 is built on branch `v1.1-extension` (4 commits, not merged, pushed or tagged). Ask first: merge --no-ff, push, wait for CI (extension tests now run), tag `v1.1`. Then v1.2 (LLM client, guard, narrator; `--llm local|hosted`, keys in `.env`; `.env.example` already committed).
+Start v1.2 on branch `v1.2-llm` from main: LLM client, guard, narrator (`--llm local|hosted`, `--llm-url`, `--model`, keys in `.env` read only by `ic_plus`; `.env.example` already committed). X4 tests with recorded replies and a fake HTTP server; `git diff v1.0 -- incident_commander/` must stay empty.
+Gotcha: `.claude/settings.json` has an uncommitted local change (a deny rule on `.env.*` was removed by the user); leave it unless asked.
 v1.1 choices are in docs/THRESHOLDS.md ("Choices that go beyond PHASE5 (v1.1)"): subcommand CLI, `--llm` accepted before or after the subcommand, scripted run delegates to graded `cmd_run`.
-The tests_plus guard in ci.yml stays until v1.1.
+The tests_plus guard in ci.yml is now true (tests_plus/ exists) and stays harmless.
