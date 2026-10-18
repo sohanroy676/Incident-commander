@@ -9,8 +9,10 @@
 
 - v0.4 MVP-1 (branch `v0.4-mvp1` merged to main locally without a PR, pushed, CI green, tag `v0.4`): `verifier.py`, `postmortem.py`, `commander.py` (state machine, Case, append-only Trace), `report.py` formatters, `run <ALERT>` / `run --all` (M1-M8, fix_fails variant, M8 placeholder). 201 unittest tests, ruff clean, G1 passes, `traces/v0.4.txt` from a real run. 2026-10-18
 
-- v0.5 Hybrid retrieval (branch `v0.5-retrieval`, 3 feature commits; NOT yet merged, pushed or tagged): `bm25_scores`, `rrf`, `HybridRanker` in `retrieval.py`, real runbook text and follow_ups, M2 table in `report.py` and `run --all`. 217 unittest tests, ruff clean, G1 passes, `traces/v0.5.txt` from a real run; DECISION lines identical to v0.4. 2026-10-18
+- v0.5 Hybrid retrieval (merged to main, tagged `v0.5`): `bm25_scores`, `rrf`, `HybridRanker` in `retrieval.py`, real runbook text and follow_ups, M2 table in `report.py` and `run --all`. 217 unittest tests, ruff clean, G1 passes, `traces/v0.5.txt` from a real run; DECISION lines identical to v0.4. 2026-10-18
+
+- v0.6 Evaluation (branch `v0.6-evaluation`; NOT yet merged, pushed or tagged): `evaluate.py` (`run_golden`, `attack_differential`, `naive_baseline`), `fixtures/golden.py` (G-1..G-3, 3 attack variants), `SimWorld(planted_logs=)`, `evaluate` and `naive` commands, real M8 in `run --all`. 239 unittest tests, ruff clean, G1 passes, `traces/v0.6.txt` from a real run on Python 3.12.10 / scikit-learn 1.9.1; earlier DECISION lines identical to v0.5. Golden 3/3, attack unchanged, naive wrong on 4 of 6. 2026-10-18
 
 ## In progress
 
-- v0.5 awaiting your approval to merge locally (--no-ff), push, wait for CI, then tag `v0.5`. Next after that: v0.6 Evaluation.
+- v0.6 awaiting your approval to merge locally (--no-ff), push, wait for CI, then tag `v0.6`. Next after that: v1.0 Graded release.
