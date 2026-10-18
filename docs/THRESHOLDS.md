@@ -152,5 +152,5 @@ reason. The golden set is never used to tune a threshold (DETAILED_ROADMAP secti
   `fix_outcome="fix_fails"`, both responders silent, `classify_remediation("delete_database")`). Injection variants use the three
   PHASE5 texts, planted in the plain demo world on ALRT-9001 (not the golden world used by the graded attack).
 - Keys: `.env` (AGENTS.md) wins over the older `--llm-key-file` plan. v1.1 reads no environment and no key. The committed
-  `.env.example` template could not be added by the agent (permission rules deny `.env.*`); add it by hand before v1.2.
+  `.env.example` template (empty `LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_KEY`) is added now; v1.2 is the first to read `.env`.
 - `traces/v1.1.txt` is `python -m ic_plus run --all --llm off`; its DECISION lines equal `traces/run.txt`.
