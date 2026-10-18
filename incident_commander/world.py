@@ -31,11 +31,16 @@ class SimWorld:
         services: Mapping[str, ServiceSpec] = SERVICES,
         alerts: Mapping[str, Alert] = ALERTS,
         tool_lags: Mapping[str, float] | None = None,
+        planted_logs: Mapping[str, tuple[str, ...]] | None = None,
     ) -> None:
         self._services = dict(services)
         self._alerts = dict(alerts)
         self._tool_lags = dict(tool_lags or {})
         self._logs = {name: make_logs(s.anchor) for name, s in self._services.items()}
+        for name, lines in (planted_logs or {}).items():  # attack tests: untrusted text, logs only
+            anchor = self._service(name).anchor
+            planted = tuple((anchor - 30.0 - i, text) for i, text in enumerate(lines))
+            self._logs[name] = tuple(sorted(self._logs[name] + planted))
         self._latency_overrides: dict[str, tuple[float, float]] = {}  # service -> (from_t, ms)
 
     def alert(self, alert_id: str) -> Alert:

@@ -1,7 +1,7 @@
 # Active Context
 
 ## Current focus
-v0.5 Hybrid retrieval is implemented on branch `v0.5-retrieval` (not merged, pushed or tagged yet). v0.4 is tagged.
+v0.6 Evaluation is implemented on branch `v0.6-evaluation` (not merged, pushed or tagged yet). v0.5 is tagged.
 
 ## Recent decisions
 - Specs came from docs/PHASE1-5.md (now committed). Deviations from PHASE5 are listed in docs/THRESHOLDS.md
@@ -33,6 +33,8 @@ v0.5 Hybrid retrieval is implemented on branch `v0.5-retrieval` (not merged, pus
 
 - v0.5 choices are in docs/THRESHOLDS.md ("Choices that go beyond PHASE5 (v0.5)"). Gotcha: this machine has no `.venv` and the registered Python 3.12 is missing; v0.5 ran on system Python 3.14.2 / scikit-learn 1.8.0.
 
+- v0.6 choices are in docs/THRESHOLDS.md ("Choices that go beyond PHASE5 (v0.6)"): golden services in `fixtures/golden.py`, `SimWorld(planted_logs=)` instead of a `Commander.run` parameter, `golden_world()` for evaluation. `.venv` on Python 3.12.10 / scikit-learn 1.9.1 works again.
+
 ## Next step
-Merge v0.5 (ask first), push, wait for CI, tag `v0.5`; then v0.6 Evaluation.
+Merge v0.6 (ask first), push, wait for CI, tag `v0.6`; then v1.0 Graded release.
 Switch CI to `dod trace` / `dod all` when those gates exist (v1.0).

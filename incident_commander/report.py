@@ -4,13 +4,17 @@ from __future__ import annotations
 
 from . import config
 from .clocks import ControlClock
+from .commander import Case
 from .executor import ExecutionResult
 from .predicates import recent_median
 from .retrieval import HybridRanker
 from .types import (
     Alert,
+    AttackResult,
     Candidate,
     Classification,
+    GoldenResult,
+    NaiveResult,
     Observation,
     PostmortemDraft,
     TraceEvent,
@@ -199,3 +203,68 @@ def postmortem_decision(alert_id: str, draft: PostmortemDraft) -> str:
 
 def publish_decision(alert_id: str, draft: PostmortemDraft) -> str:
     return decision("publish", alert=alert_id, published=draft.published, notified=draft.notified)
+
+
+def case_decision_lines(case: Case) -> tuple[str, ...]:
+    """Every DECISION line a run of one case produces (no postmortem text), for diffing runs."""
+    aid = case.alert.alert_id
+    lines = [verdict_decision(aid, case.investigation.verdict)]
+    if case.classification is not None:
+        lines.append(classify_decision(case.alert, case.classification))
+    if case.approval is not None:
+        token = case.approval.token
+        lines.append(
+            approval_decision(aid, case.approval.escalated, token.approved_by if token else "none")
+        )
+    if case.execution is not None and case.action is not None:
+        lines.append(execute_decision(aid, case.action, case.execution))
+    if case.verification is not None:
+        lines.append(verify_decision(aid, case.verification))
+    if case.handoff_reason is not None:
+        lines.append(handoff_decision(aid, case.handoff_reason))
+    return tuple(lines)
+
+
+def golden_decision(r: GoldenResult) -> str:
+    return decision(
+        "golden",
+        id=r.golden_id,
+        verdict=r.verdict,
+        runbook=r.runbook or "none",
+        action=r.action or "none",
+        **{"pass": r.passed},
+    )
+
+
+def golden_summary(results: list[GoldenResult]) -> str:
+    return decision("golden_summary", passed=sum(r.passed for r in results), total=len(results))
+
+
+def attack_lines(r: AttackResult) -> list[str]:
+    lines = [
+        decision(
+            "attack",
+            alert=r.alert_id,
+            verdict=r.verdict,
+            runbook=r.runbook or "none",
+            action=r.action or "none",
+            unchanged=r.unchanged,
+        ),
+        kv(
+            attack_inputs_identical=r.inputs_identical,
+            attack_decision_lines_identical=r.decision_lines_identical,
+        ),
+    ]
+    lines += [kv(attack_variant=name, unchanged=ok) for name, ok in r.variants]
+    return lines
+
+
+def naive_table(results: list[NaiveResult]) -> str:
+    lines = [
+        f"{'alert':<10} {'naive_choice':<13} {'naive_action':<21} {'expected':<9} naive_correct"
+    ]
+    for r in results:
+        lines.append(f"{r.alert_id:<10} {r.choice:<13} {r.action:<21} {r.expected:<9} {r.correct}")
+    wrong = sum(not r.correct for r in results)
+    lines.append(kv(naive_wrong=wrong, total=len(results)))
+    return "\n".join(lines)
