@@ -154,3 +154,26 @@ reason. The golden set is never used to tune a threshold (DETAILED_ROADMAP secti
 - Keys: `.env` (AGENTS.md) wins over the older `--llm-key-file` plan. v1.1 reads no environment and no key. The committed
   `.env.example` template (empty `LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_KEY`) is added now; v1.2 is the first to read `.env`.
 - `traces/v1.1.txt` is `python -m ic_plus run --all --llm off`; its DECISION lines equal `traces/run.txt`.
+
+## Choices that go beyond PHASE5 (v1.2)
+
+- Provider flag is `--llm local|hosted` (not `ollama`); X2 uses `--llm local`. `--llm-url` and `--model` are accepted before or after
+  the subcommand. There is no `--llm-key-file`: `.env` wins (AGENTS.md), parsed by `ic_plus/envfile.py`, the only place `.env` is read.
+  No process variables are read anywhere.
+- Precedence: flags, then `.env` (`LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_KEY`), then the local default `http://localhost:11434/v1`.
+  `hosted` needs url, model and key; `local` ignores the key. Anything missing prints `llm: not configured (missing ...)` on stderr and
+  uses the fallback. A missing `.env` is normal.
+- `LLMClient.chat` never raises, has no retries, a 20 s default timeout, sends the key only as a bearer header, and scrubs it from errors.
+- Decisions come from the unchanged graded `cmd_run`; with `--llm local|hosted` the narrator then runs on separate, identical
+  deterministic cases (cmd_run prints but does not return its cases). Output per alert, before the banner:
+  `narrator: alert=<ID>`, then `llm: ok role=narrator model=<m> guard=pass` plus `postmortem narrative: "AI-drafted narrative (not authoritative): ..."`,
+  or `llm_rejected role=narrator alert=<ID> reason=...` plus `llm: rejected, deterministic fallback`, or `llm: unavailable, deterministic fallback`.
+  After the first unavailable result the remaining alerts skip the server. The banner is `extension: llm=<mode> approver=<x>`.
+- The graded draft is frozen, so the AI narrative is printed by `ic_plus`, not written into the graded postmortem draft; the template
+  narrative is that draft. `llm_ok` / `llm_rejected` / `llm_unavailable` events are emitted into the narrated case's trace.
+- Narrator facts are typed outcome fields of the case (ids, verdict, tier, approval, execution, verification, handoff reason); never
+  `Observation.data` or log excerpts. Reply keys are exactly `summary`, `impact`, `root_cause_text`, each at most 600 characters.
+- Guard limits: numbers, hyphenated identifiers and the known service/runbook/approver names must appear in the facts; sentences that
+  start with an imperative verb or match instruction phrases are rejected. A free-form unknown person name is not detectable; the guard
+  is a backstop and the fallback is always safe.
+- Purity test now allows `urllib`/`http` only in `llm_client.py` and `.env` only in `envfile.py`.
