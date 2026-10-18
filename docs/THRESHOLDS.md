@@ -177,3 +177,34 @@ reason. The golden set is never used to tune a threshold (DETAILED_ROADMAP secti
   start with an imperative verb or match instruction phrases are rejected. A free-form unknown person name is not detectable; the guard
   is a backstop and the fallback is always safe.
 - Purity test now allows `urllib`/`http` only in `llm_client.py` and `.env` only in `envfile.py`.
+
+## Choices that go beyond PHASE5 (v1.3)
+
+- Roles: `explainer.py` (`ic_plus explain <ALERT> "<question>"`), `advisor.py` (`advise`) and `x3.py` (`ic_plus evaluate --llm ...`).
+  Trace events reuse the v1.2 names (`llm_ok`, `llm_rejected`, `llm_unavailable`) with a `role=narrator|explainer|advisor` field.
+- Explainer: free text (no JSON mode), at most 600 characters, same grounding checks as the narrator (numbers, hyphenated identifiers
+  and known names must appear in the typed facts; no instruction phrases or imperative sentence starts). The question is untrusted:
+  reduced to one printable line of at most 200 characters before it reaches the model. Fallback is a deterministic sentence built from the
+  facts, which passes its own guard. Output is labelled `[AI explanation, not authoritative]` or `[deterministic explanation]`.
+- Advisor guard (`guard_advice`): reply is exactly `{"order": [...]}`; every name must be one of the four evidence tools (never
+  `get_logs`), none repeated. "Nothing new" is read as "no name outside the allow-list". A partial list is padded with the remaining
+  tools in fixed order, so the result is always a permutation. The request holds ids and numbers only (alert id, service, metric, ranked
+  candidates with scores, allowed tool names); no summary text, severity or logs.
+- Advice enters only through `investigate(tool_order=...)`, which exists in the frozen package but is not forwarded by `Commander.run`.
+  `x3.advised_orders` wraps `incident_commander.commander.investigate` for the duration of a run and restores it afterwards; nothing
+  in `incident_commander/` is edited. `ic_plus run` does not apply advice; only `evaluate` does, as the X3 proof.
+- X3 (`evaluate --llm local|hosted`): the graded M8 prints unchanged, then per fixture alert (3 demo + 3 golden) the advisor is asked,
+  the pipeline runs under the advised order, and the narrator and explainer read the finished case. Its DECISION lines must equal a
+  no-LLM baseline; the graded M8 is also re-run under the advised orders and its whole output compared. Output ends with
+  `llm: roles=narrator,explainer,advisor decisions_changed=N` and the command exits 1 when N > 0. A role that is unavailable or
+  rejected still counts as run (its fallback is what is compared). `--llm off` prints `llm: off`.
+- Automatic X3 test: all 24 tool orders give the same verdict on all six fixture alerts; reversed advice, adversarial advice and a dead
+  model leave every DECISION line unchanged; a one-tool order is shown to change decisions, so the comparison can fail.
+- Hosted provider: nothing new in the client. `--llm hosted` needs `LLM_BASE_URL` (or `--llm-url`), `LLM_MODEL` (or `--model`) and
+  `LLM_API_KEY`, the key from `.env` only (never a flag). Example hosted URL: `https://api.groq.com/openai/v1`. Free-tier limits were not
+  checked in this session (no key available); 4xx/429/5xx and timeouts fall back and exit normally (tested against a fake server).
+  Whether a given hosted provider supports `response_format: json_object` is unverified; the client sends it for JSON roles only
+  (not for the explainer).
+- v1.2 gap closed: once the server is down, later alerts skip the call and now also record `llm_unavailable` in their trace.
+- Traces: `traces/v1.3.txt` (`run --all --llm local`) and `traces/v1.3-evaluate.txt` (`evaluate --llm local`) are real runs against an
+  unreachable URL; their DECISION lines equal `traces/run.txt`. Live traces with a real model are still pending and manual.
