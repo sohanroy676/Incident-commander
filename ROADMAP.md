@@ -3,7 +3,7 @@ Full detail per version: docs/DETAILED_ROADMAP.md. Each version is done when its
 gates still pass, its trace is saved to traces/vX.Y.txt, and the git tag exists.
 
 ## Now
-- v1.0 is merged to main, CI green, tagged `v1.0`; `incident_commander/` is frozen. v1.1, v1.2 and v1.3 are merged, CI green, tagged. Next: v2.0.
+- v1.0 is merged to main, CI green, tagged `v1.0`; `incident_commander/` is frozen. v1.1, v1.2, v1.3 and v2.0 are merged, CI green, tagged. Nothing planned next.
 
 ## Done
 - v0.1 Foundations (tagged `v0.1`): scaffold, clocks, types, config, simulated world, five tools, M1 output, G1 purity.
@@ -17,12 +17,14 @@ gates still pass, its trace is saved to traces/vX.Y.txt, and the git tag exists.
 - v1.2 LLM client, guard and narrator (merged to main, CI green, tagged `v1.2`): `ic_plus` stdlib OpenAI-compatible client, `.env` parser, deterministic `guard_narrative`, narrator with template fallback, `--llm local|hosted --llm-url --model`, X4 tests with a fake server, `traces/v1.2.txt`. Live trace `traces/v1.2-live.txt` still pending (manual).
 - v1.3 Explainer, advisor and hosted provider (merged to main, CI green, tagged `v1.3`): `ic_plus explain`, `advisor.py` + `guard_advice`, `guard_explanation`, `ic_plus evaluate --llm` with the X3 proof (`llm: roles=narrator,explainer,advisor decisions_changed=0`), `traces/v1.3.txt` and `traces/v1.3-evaluate.txt`. Live traces with a real model still pending (manual).
 
+- v2.0 Extended release (merged to main, CI green, tagged `v2.0`): `docs/DEMO.md` (graded and extended demo scripts, dry-run), README extension section, `tests_plus/test_release.py` (X1-X4), `traces/v2.0.txt`, live local-model traces `traces/v1.2-live.txt` and `traces/v1.3-live-evaluate.txt` (Ollama llama3.2).
+
 ## Next
-- v2.0 Extended release: demo scripts, rehearsal, G1–G6 and X1–X4 green, tag.
+- Nothing scheduled. Submission and viva rehearsal with docs/DEMO.md.
 
 ## Later / ideas
 - Optional GitHub Actions workflow running `dod all` (first to cut if time runs short).
-- Live local-model and hosted free-tier runs saved as traces (manual; free-tier limits still unchecked).
+- Hosted free-tier run saved as a trace (manual; free-tier limits still unchecked).
 
 ## Explicitly not planned
 - Incident queue, JSON/Markdown exports, random fault injection.
