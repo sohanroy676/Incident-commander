@@ -1,7 +1,7 @@
 # Active Context
 
 ## Current focus
-v1.2 LLM client, guard and narrator is merged to main, pushed, CI green and tagged `v1.2`. `incident_commander/` stays frozen (tag `v1.0`). Next: v1.3.
+v1.3 explainer, advisor and X3 is merged to main, pushed, CI green and tagged `v1.3`. `incident_commander/` stays frozen (tag `v1.0`). Next: v2.0.
 
 ## Recent decisions
 - Specs came from docs/PHASE1-5.md (now committed). Deviations from PHASE5 are listed in docs/THRESHOLDS.md
@@ -38,6 +38,7 @@ v1.2 LLM client, guard and narrator is merged to main, pushed, CI green and tagg
 - v0.6 choices are in docs/THRESHOLDS.md ("Choices that go beyond PHASE5 (v0.6)"): golden services in `fixtures/golden.py`, `SimWorld(planted_logs=)` instead of a `Commander.run` parameter, `golden_world()` for evaluation. `.venv` on Python 3.12.10 / scikit-learn 1.9.1 works again.
 
 ## Next step
-Start v1.3 on branch `v1.3-roles` from main: explainer and advisor roles plus the hosted provider, X3 proof that decisions are unchanged with the LLM on (`llm: roles=narrator,explainer,advisor decisions_changed=0`). Reuse `ic_plus/llm_client.py`, `guard.py` (add advisor/explainer checks) and the `_Narration` pattern in `ic_plus/__main__.py`; `git diff v1.0 -- incident_commander/` must stay empty.
+Start v2.0 (extended release) on a branch from main: demo scripts, rehearsal, G1-G6 and X1-X4 green, tag. Read docs/DETAILED_ROADMAP.md for the v2.0 section first. `git diff v1.0 -- incident_commander/` must stay empty.
+v1.3 choices are in docs/THRESHOLDS.md ("Choices that go beyond PHASE5 (v1.3)"): `ic_plus run` does not apply advisor advice (only `evaluate` does, via `x3.advised_orders`, a temporary wrapper around the frozen `investigate`); explainer is free text (no JSON mode) capped at 600 characters; `guard_advice` pads partial lists to a permutation; free-tier limits of hosted providers were not checked.
 v1.2 choices are in docs/THRESHOLDS.md ("Choices that go beyond PHASE5 (v1.2)"): `.env` only (no `--llm-key-file`), flags beat `.env`, narrator runs on separate identical cases after the graded `cmd_run`, narrative is printed by `ic_plus` (graded draft is frozen), guard limits.
-Gotchas: `.claude/settings.json` has an uncommitted local change; leave it unless asked. Reading `.env` via Bash is denied by settings, so tests never depend on it (flags plus a patched `load_env`). `traces/v1.2-live.txt` (a real local or hosted model run) is still pending and manual.
+Gotchas: `.claude/settings.json` has an uncommitted local change; leave it unless asked. Reading `.env` via Bash is denied by settings, so tests never depend on it (flags plus a patched `load_env`). `traces/v1.2-live.txt` and a v1.3 live trace (a real local or hosted model run, e.g. `evaluate --llm local`) are still pending and manual. Gotcha: `git merge` does not accept `-F -`; use `-m`. Heredoc-appended text to CRLF Python files leaves mixed endings (normalise with a patch script).
