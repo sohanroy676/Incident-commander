@@ -139,3 +139,18 @@ reason. The golden set is never used to tune a threshold (DETAILED_ROADMAP secti
   each sabotage asserts its target text occurs exactly once so it cannot silently do nothing.
 - `traces/run.txt` is exactly `python -m incident_commander run --all > traces/run.txt`. Unlike the versioned traces it has no
   interpreter header line and no appended `naive` table, so G5 and G6 read the plain output.
+
+## Choices that go beyond PHASE5 (v1.1)
+
+- CLI shape: subcommands `run [ALERT|--all]` and `scenario <name>|all` (DETAILED_ROADMAP showed both flags and a subcommand);
+  `--llm off|local|hosted` is accepted before or after the subcommand, and `local`/`hosted` exit 2 with "not available until v1.2".
+- `run ... --approver scripted` calls the graded `cmd_run` unchanged, so its output is the graded output plus one
+  `extension: llm=off approver=scripted` line; only `--approver cli` (one alert, optional `--deadline S`) has its own runner.
+- `CliResponder` reads lines on a daemon thread into a queue; only the exact words `approve` / `deny` (any case, trimmed) count,
+  noise is ignored, and a closed or failing stream is no answer. A typed answer goes to whichever page is being polled.
+- Scenarios use the public graded API only (`SimWorld(tool_lags=, planted_logs=)`, a `ServiceSpec` with a raising `error_rate`,
+  `fix_outcome="fix_fails"`, both responders silent, `classify_remediation("delete_database")`). Injection variants use the three
+  PHASE5 texts, planted in the plain demo world on ALRT-9001 (not the golden world used by the graded attack).
+- Keys: `.env` (AGENTS.md) wins over the older `--llm-key-file` plan. v1.1 reads no environment and no key. The committed
+  `.env.example` template could not be added by the agent (permission rules deny `.env.*`); add it by hand before v1.2.
+- `traces/v1.1.txt` is `python -m ic_plus run --all --llm off`; its DECISION lines equal `traces/run.txt`.
