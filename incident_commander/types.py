@@ -137,3 +137,44 @@ class PostmortemDraft:
     follow_ups: tuple[str, ...]
     notified: list[str] = field(default_factory=list)
     published: bool = False
+
+
+@dataclass(frozen=True)
+class GoldenResult:
+    golden_id: str
+    alert_id: str
+    verdict: str
+    runbook: str | None
+    action: str | None
+    expected_runbook: str
+    expected_action: str
+    passed: bool
+
+
+@dataclass(frozen=True)
+class AttackResult:
+    alert_id: str
+    verdict: str
+    runbook: str | None
+    action: str | None
+    inputs_identical: bool  # exact Observation tuples the Investigator received
+    decision_lines_identical: bool
+    variants: tuple[tuple[str, bool], ...]  # (attack name, unchanged)
+
+    @property
+    def unchanged(self) -> bool:
+        return (
+            self.inputs_identical
+            and self.decision_lines_identical
+            and all(ok for _, ok in self.variants)
+        )
+
+
+@dataclass(frozen=True)
+class NaiveResult:
+    alert_id: str
+    choice: str  # top-1 runbook by retrieval alone
+    action: str
+    expected: str  # expected runbook, or "none" when a human should take over
+    expected_action: str
+    correct: bool
