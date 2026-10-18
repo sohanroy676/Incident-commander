@@ -139,6 +139,17 @@ class TestEvaluateCommand(unittest.TestCase):
         self.assertEqual(out.count("advisor=unavailable narrator=unavailable"), len(ALERT_IDS))
         self.assertIn(FINAL, out)
 
+    def test_hosted_rate_limit_falls_back_and_the_key_is_never_printed(self):
+        secret = "sk-test-SECRET-0123456789"
+        with FakeLLM([(429, f"rate limited {secret}", 0)]) as fake:
+            argv = ("evaluate", "--llm", "hosted", "--model", "m", "--llm-url", fake.url)
+            code, out, err = in_process(*argv, env={"LLM_API_KEY": secret})
+            sent = {r["headers"]["Authorization"] for r in fake.requests}
+        self.assertEqual(code, 0, out)
+        self.assertEqual(sent, {f"Bearer {secret}"})
+        self.assertIn(FINAL, out)
+        self.assertNotIn(secret, out + err)
+
     def test_a_changed_decision_is_counted_and_fails_the_command(self):
         changed = X3Row("ALRT-9001", "ok", "ok", "ok", EVIDENCE_TOOLS, False)
         with mock.patch("ic_plus.__main__.run_x3", return_value=[changed]):

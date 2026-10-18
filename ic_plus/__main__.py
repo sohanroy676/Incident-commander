@@ -59,6 +59,7 @@ class _Narration:
             return
         print(f"narrator: alert={case.alert.alert_id}")
         if self.down:
+            case.trace.emit("llm_unavailable", role="narrator", reason="server unavailable")
             print(UNAVAILABLE_LINE)
             return
         outcome = narrate(case, self.client)
