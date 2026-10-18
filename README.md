@@ -93,13 +93,7 @@ The model only writes labelled text; it never changes a decision. Skip this step
 If the model is missing or unreachable, the run still finishes and prints
 `llm: unavailable, deterministic fallback`.
 
-**7. Run the tests and lint**
-
-```
-python -m unittest discover -s tests -v          # graded build, about 3 min
-python -m unittest discover -s tests_plus -v     # extension, about 5 min
-ruff check . ; ruff format --check .
-```
+**7. Run the tests and lint**: see [Tests, lint and format](#tests-lint-and-format).
 
 ## Demo (one command)
 
@@ -177,9 +171,14 @@ Predicates print as `TRUE`, `FALSE` or `UNKNOWN`. A stale or failed observation 
 ## Tests, lint and format
 
 ```
-python -m unittest discover -s tests -v          # the full suite (about 2 minutes)
-ruff check . && ruff format .                    # lint and format
+python -m unittest discover -s tests -v          # graded build, about 3 minutes
+python -m unittest discover -s tests_plus -v     # extension, about 5 minutes
+python -m incident_commander.dod all             # gates G1-G6, about 30 seconds
+ruff check .                                     # lint
+ruff format --check .                            # format check; drop --check to rewrite files
 ```
+
+CI runs ruff, both test suites and `dod all` on Ubuntu with Python 3.12.
 
 `docs/THRESHOLDS.md` lists every tunable, where it lives (`incident_commander/config.py`) and the choices made
 beyond the written spec. `traces/` holds the real, unedited output of each version; `traces/run.txt` is the
@@ -195,22 +194,18 @@ trace for the report. Do not edit a trace by hand.
 ## Extended build (`ic_plus`, optional)
 
 The extension runs the same pipeline and may add AI-written text under a label. It never makes or changes a
-decision: replies pass a deterministic guard, and any failure falls back to a template.
+decision: replies pass a deterministic guard, and any failure falls back to a template. Setup and the model
+options (`off`, `local`, `hosted`) are in Quick start steps 5 and 6.
 
 ```
-python -m ic_plus run --all --llm off                       # default; same DECISION lines as the graded run
+python -m ic_plus run --all --llm off                          # default; same DECISION lines as the graded run
 python -m ic_plus run ALRT-9001 --approver cli --deadline 20   # you approve the page within 20 s
-python -m ic_plus run --all --llm local --llm-url http://localhost:11434/v1 --model llama3.2
-python -m ic_plus explain ALRT-9001 "why rollback?"
-python -m ic_plus evaluate --llm local                      # M8 plus X3: decisions_changed=0
-python -m ic_plus scenario all                              # extra scenarios
-python -m unittest discover -s tests_plus -v
+python -m ic_plus explain ALRT-9001 "why rollback?"            # add --llm local ... for an AI explanation
+python -m ic_plus evaluate --llm off                           # M8 only; with a model it adds the X3 line
+python -m ic_plus scenario all                                 # extra scenarios
 ```
 
-- Modes: `off` (default), `local` (Ollama, no key) and `hosted` (OpenAI-compatible, key required).
-  Free-tier limits of hosted providers were not checked.
-- Settings: flags `--llm-url` and `--model` beat `.env`. Copy `.env.example` to `.env` (gitignored) and set
-  `LLM_BASE_URL`, `LLM_MODEL` and, for hosted only, `LLM_API_KEY`. Keys are never printed or traced.
-- No model available: the run prints `llm: unavailable, deterministic fallback`. For a demo without a model,
-  show the recorded runs in `traces/` (`v1.2-live.txt`, `v1.3-live-evaluate.txt`). See `docs/DEMO.md`.
-- Gates X1-X4 are checked by `tests_plus/test_release.py`.
+Add `--llm local --llm-url http://localhost:11434/v1 --model llama3.2` to `run`, `explain` or `evaluate` to use
+Ollama. Without a reachable model the run prints `llm: unavailable, deterministic fallback`. Demo scripts and
+recorded model runs (`traces/v1.2-live.txt`, `traces/v1.3-live-evaluate.txt`) are in `docs/DEMO.md`. Gates
+X1-X4 are checked by `tests_plus/test_release.py`.
