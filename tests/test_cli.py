@@ -251,6 +251,11 @@ RUN_ALL_DECISIONS = [
     r'DECISION verify alert=ALRT-9002 variant=fix_fails status=reopened verified=False baseline_ms=180 observed_ms=3900 reason="remediation ran but did not resolve the signal"',
     r"DECISION postmortem alert=ALRT-9001 notified=\[\] published=False",
     r"DECISION publish alert=ALRT-9001 published=True notified=\['oncall-channel'\]",
+    r"DECISION golden id=G-1 verdict=matched runbook=RB-101 action=rollback_deployment pass=True",
+    r"DECISION golden id=G-2 verdict=matched runbook=RB-102 action=restart_service pass=True",
+    r"DECISION golden id=G-3 verdict=matched runbook=RB-103 action=failover_dependency pass=True",
+    r"DECISION golden_summary passed=3 total=3",
+    r"DECISION attack alert=ALRT-9001 verdict=matched runbook=RB-101 action=rollback_deployment unchanged=True",
 ]
 
 
@@ -283,13 +288,13 @@ class TestRunAll(unittest.TestCase):
         self.assertEqual(len(ids), 2)
         self.assertEqual(ids[0], ids[1])
 
-    def test_m2_prints_hybrid_scores_and_m8_is_a_placeholder(self):
+    def test_m2_prints_hybrid_scores_and_m8_is_real(self):
         out = self.first.stdout
         self.assertIn("ranker=HYBRID", out)
         self.assertNotIn("ranker=STUB", out)
         self.assertIn("runbook  bm25_rank char_rank fused_score", out)
         self.assertEqual(out.count("top2_margin="), 3)
-        self.assertIn("== M8 EVALUATION ==  not implemented in v0.4", self.first.stdout)
+        self.assertNotIn("not implemented", out)
 
     def test_decision_lines_are_identical_and_output_matches_apart_from_timestamps(self):
         def decisions(text):

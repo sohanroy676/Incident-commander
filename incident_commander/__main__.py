@@ -20,6 +20,7 @@ from .config import (
     SECONDARY_ONCALL,
     STATIC_RANKER_ORDER,
 )
+from .evaluate import attack_differential, golden_world, naive_baseline, run_golden
 from .executor import Executor
 from .fixtures.runbooks import RUNBOOKS
 from .investigator import ToolBox, investigate
@@ -36,15 +37,19 @@ from .report import (
     M8_TITLE,
     PrintTrace,
     approval_decision,
+    attack_lines,
     classify_decision,
     decision,
     event_line,
     execute_decision,
+    golden_decision,
+    golden_summary,
     handoff_decision,
     header,
     kv,
     m1_report,
     m2_table,
+    naive_table,
     postmortem_decision,
     publish_decision,
     verdict_decision,
@@ -300,7 +305,34 @@ def cmd_run(alert_id: str | None) -> int:
     _case_lines(first, "PUBLISH")
     print(publish_decision(first.alert.alert_id, published))
 
-    print(header(8, M8_TITLE) + "  not implemented in v0.4")
+    print(header(8, M8_TITLE))
+    _m8_section()
+    return 0
+
+
+def _m8_section() -> bool:
+    """Golden set and differential attack, each case on its own fresh world; True if all hold."""
+    golden = run_golden(_new_commander)
+    for result in golden:
+        print(golden_decision(result))
+    print(golden_summary(golden))
+    attack = attack_differential(_new_commander)
+    for line in attack_lines(attack):
+        print(line)
+    return all(r.passed for r in golden) and attack.unchanged
+
+
+def cmd_evaluate() -> int:
+    print(header(8, M8_TITLE))
+    return 0 if _m8_section() else 1
+
+
+def cmd_naive() -> int:
+    """Approach A: the top retrieval hit's action with no investigation, on the same fixtures."""
+    world = golden_world()
+    ranker = HybridRanker(tuple(RUNBOOKS.values()))
+    results = naive_baseline(ranker, (world.alert(a) for a in world.alert_ids()))
+    print(naive_table(results))
     return 0
 
 
@@ -317,11 +349,17 @@ def main(argv: list[str] | None = None) -> int:
     run_cmd = sub.add_parser("run", help="M1-M8 end to end for one alert, or --all")
     run_cmd.add_argument("alert_id", nargs="?")
     run_cmd.add_argument("--all", action="store_true", help="run all three demo alerts")
+    sub.add_parser("evaluate", help="M8: golden set and planted-log attack")
+    sub.add_parser("naive", help="naive baseline: top runbook, no investigation")
     args = parser.parse_args(argv)
     if args.command == "run":
         if args.all == (args.alert_id is not None):
             parser.error("run needs exactly one of an alert id or --all")
         return cmd_run(None if args.all else args.alert_id)
+    if args.command == "evaluate":
+        return cmd_evaluate()
+    if args.command == "naive":
+        return cmd_naive()
     if args.command == "gates":
         return cmd_gates()
     if args.command == "investigate":
