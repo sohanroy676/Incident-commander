@@ -127,11 +127,17 @@ class TestExtensionPurity(unittest.TestCase):
                 self.assertLessEqual(roots, allowed, path.name)
                 self.assertFalse(roots & FORBIDDEN_IMPORTS, f"{path.name}: network import")
 
-    def test_no_environment_access_in_v1_1(self):
+    def test_no_process_environment_access(self):
         for path in self.sources():
             text = path.read_text(encoding="utf-8")
-            for needle in ("environ", "getenv", ".env"):
+            for needle in ("environ", "getenv"):
                 self.assertNotIn(needle, text, f"{path.name}: {needle}")
+
+    def test_only_envfile_reads_dotenv(self):
+        for path in self.sources():
+            if path.name == "envfile.py":
+                continue
+            self.assertNotIn(".env", path.read_text(encoding="utf-8"), path.name)
 
 
 if __name__ == "__main__":
