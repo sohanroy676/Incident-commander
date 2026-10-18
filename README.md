@@ -2,23 +2,104 @@
 
 A deterministic incident-response agent over simulated production data (Sem VII Agentic AI course).
 It investigates alerts from real signals, gates risky fixes behind time-boxed human approval, verifies
-the fix, and drafts a postmortem. An optional LLM extension (`ic_plus`, from v1.1) never makes decisions.
+the fix, and drafts a postmortem. An optional LLM extension (`ic_plus`) never makes decisions.
 
-**Status: v1.0 Graded release.** All eight milestones (M1 to M8) run end to end with one command, and all
+**Status: v2.0 Extended release** (graded build tagged `v1.0`). All eight milestones (M1 to M8) run end to end with one command, and all
 six Definition-of-Done gates (G1 to G6) pass with one command. The graded package `incident_commander/` is
 frozen from here on. Planning documents: `ROADMAP.md`, `docs/DETAILED_ROADMAP.md`, `docs/PHASE1.md` to `PHASE5.md`.
 
 Stack: Python 3.12 (works on 3.10 and later), standard library plus scikit-learn only. The graded build reads
 no environment variables, no keys and no network. Verified on Python 3.12.10 with scikit-learn 1.9.1.
 
-## Setup
+## Quick start (from a fresh clone)
+
+You need Git and Python 3.12 (3.10 or later also works). Commands for Windows PowerShell and for
+Linux/macOS are shown side by side.
+
+**1. Clone**
 
 ```
-python3.12 -m venv .venv && source .venv/bin/activate      # Windows: .venv\Scripts\activate
+git clone https://github.com/sohanroy676/incident-commander.git
+cd incident-commander
+```
+
+**2. Create and activate a virtual environment**
+
+```
+# Windows (PowerShell)
+py -3.12 -m venv .venv
+.venv\Scripts\Activate.ps1
+
+# Linux / macOS
+python3.12 -m venv .venv
+source .venv/bin/activate
+```
+
+On Windows, if activation is blocked, run `Set-ExecutionPolicy -Scope Process RemoteSigned` first, or skip
+activation and call `.venv\Scripts\python` instead of `python` in every command below.
+
+**3. Install dependencies**
+
+```
 pip install -r requirements.txt -r requirements-dev.txt
 ```
 
 `requirements.txt` holds scikit-learn only. `requirements-dev.txt` holds ruff (dev only, never imported).
+
+**4. Run the graded build** (no `.env`, no environment variables, no network)
+
+```
+python -m incident_commander run --all        # all eight milestones, about 10 s
+python -m incident_commander.dod all          # gates G1-G6, about 30 s; prints one PASS/FAIL line each
+```
+
+**5. Run the extended build without a model** (also needs no `.env`)
+
+```
+python -m ic_plus run --all --llm off
+```
+
+**6. Optional: add an LLM (extension only)**
+
+The model only writes labelled text; it never changes a decision. Skip this step to run without one.
+
+- *Local, no key (Ollama):* install Ollama, then `ollama pull llama3.2` and keep it running. No `.env` is needed:
+
+  ```
+  python -m ic_plus run --all --llm local --llm-url http://localhost:11434/v1 --model llama3.2
+  ```
+
+- *Hosted, key required (any OpenAI-compatible API, for example Groq):* copy the template, then edit `.env`.
+
+  ```
+  # Windows (PowerShell)
+  Copy-Item .env.example .env
+  # Linux / macOS
+  cp .env.example .env
+  ```
+
+  Fill in `.env` (it is gitignored; never commit it or paste the key anywhere else):
+
+  ```
+  LLM_BASE_URL=https://api.groq.com/openai/v1
+  LLM_MODEL=<model name from your provider>
+  LLM_API_KEY=<your key>
+  ```
+
+  Then run `python -m ic_plus run --all --llm hosted`. Flags `--llm-url` and `--model` override `.env`.
+  Only `ic_plus` reads `.env`; `LLM_API_KEY` is used by `--llm hosted` only. Free-tier limits of hosted
+  providers were not checked.
+
+If the model is missing or unreachable, the run still finishes and prints
+`llm: unavailable, deterministic fallback`.
+
+**7. Run the tests and lint**
+
+```
+python -m unittest discover -s tests -v          # graded build, about 3 min
+python -m unittest discover -s tests_plus -v     # extension, about 5 min
+ruff check . ; ruff format --check .
+```
 
 ## Demo (one command)
 
