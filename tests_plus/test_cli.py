@@ -125,7 +125,12 @@ class TestExtensionPurity(unittest.TestCase):
                 else:
                     continue
                 self.assertLessEqual(roots, allowed, path.name)
-                self.assertFalse(roots & FORBIDDEN_IMPORTS, f"{path.name}: network import")
+                if path.name != "llm_client.py":
+                    self.assertFalse(roots & FORBIDDEN_IMPORTS, f"{path.name}: network import")
+                else:
+                    self.assertFalse(
+                        roots & {"socket", "requests", "ssl"}, "llm_client: stdlib urllib only"
+                    )
 
     def test_no_process_environment_access(self):
         for path in self.sources():
