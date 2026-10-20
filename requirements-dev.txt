@@ -1,1 +1,5 @@
 ruff
+coverage
+mypy
+pip-audit
+bandit

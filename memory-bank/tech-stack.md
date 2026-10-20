@@ -32,8 +32,8 @@
 - `pip install -r requirements-dev.txt`      (ruff)
 - Graded demo: `python -m incident_commander run --all`
 - Extended demo: `python -m ic_plus run --all --llm off|local|hosted`
-- No build step, no installer, no packaging. (Proposed for v2.1, pending approval: a `pyproject.toml` with console
-  scripts; `requirements.txt` stays the single source of the scikit-learn pin.)
+- No build step or installer. v2.1 adds an optional `pyproject.toml` (console scripts `incident-commander`, `ic-plus`;
+  no license field until P6 is decided); `requirements.txt` stays the single source of the scikit-learn pin.
 - Proposed dev-only tools (v2.1, never imported by code): `coverage`, `mypy` (lenient, excluding `incident_commander/`),
   `pip-audit`, `bandit`, `pre-commit`. `ic_hub/` (v2.2) would be stdlib only. Tests keep real clocks: no patched sleep, no fake clock.
 

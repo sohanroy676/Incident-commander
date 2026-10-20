@@ -1,5 +1,6 @@
 # CI: lint, format check, unit tests and Definition-of-Done gates.
 # Runs on every push and PR to main, and manually via workflow_dispatch.
+# The slow real-clock suites are sharded into parallel jobs; no test patches sleep.
 name: CI
 
 on:
@@ -13,20 +14,16 @@ permissions:
   contents: read
 
 jobs:
-  build-and-test:
+  lint:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ["3.12"]
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Python ${{ matrix.python-version }}
+      - name: Set up Python 3.12
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: "3.12"
           cache: pip
           cache-dependency-path: |
             requirements.txt
@@ -41,13 +38,117 @@ jobs:
       - name: Format check
         run: ruff format --check .
 
-      # The extension tests run whenever tests_plus/ exists (since v1.1).
-      - name: Unit tests (graded build)
-        run: python -m unittest discover -s tests -v
+      # Lenient config; incident_commander/ is excluded (frozen, not fully annotated).
+      # Informational: 13 known errors in ic_plus (v2.1 baseline) are not fixed in a docs/CI release.
+      - name: Type check (extension only, informational)
+        continue-on-error: true
+        run: mypy ic_plus
 
-      - name: Unit tests (extension)
-        if: hashFiles('tests_plus/**') != ''
-        run: python -m unittest discover -s tests_plus -v
+      # Fails on high severity only. Known baseline (not fixed here): B310 llm_client.py (urlopen on the
+      # configured LLM URL), B404/B603 dod.py (subprocess with a fixed argument list).
+      - name: Security scan (bandit, high severity)
+        run: bandit -q -lll -r incident_commander ic_plus -c pyproject.toml
+
+      - name: Dependency audit (pip-audit)
+        run: pip-audit -r requirements.txt
+
+  # Profile (v2.1): the time is subprocess interpreter starts (scikit-learn import) in the CLI-style tests,
+  # not approval deadlines, so the lever is sharding by module. Real clocks stay; nothing patches sleep.
+  # "pick" is a regex over module names; the "rest" shards take every module not picked elsewhere,
+  # so a new test module is never skipped.
+  tests:
+    name: tests (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {name: core-cli, dir: tests, pick: "^test_cli$", invert: "false"}
+          - {name: core-gates, dir: tests, pick: "^(test_dod|test_canaries)$", invert: "false"}
+          - {name: core-rest, dir: tests, pick: "^(test_cli|test_dod|test_canaries)$", invert: "true"}
+          - {name: plus-hard, dir: tests_plus, pick: "^(test_x3|test_release|test_cli|test_approver_cli)$", invert: "false"}
+          - {name: plus-llm, dir: tests_plus, pick: "^(test_llm_cli|test_llm_client|test_llm_guard|test_envfile)$", invert: "false"}
+          - {name: plus-rest, dir: tests_plus, pick: "^(test_x3|test_release|test_cli|test_approver_cli|test_llm_cli|test_llm_client|test_llm_guard|test_envfile)$", invert: "true"}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Unit tests (${{ matrix.dir }}, ${{ matrix.name }})
+        env:
+          DIR: ${{ matrix.dir }}
+          PICK: ${{ matrix.pick }}
+          INVERT: ${{ matrix.invert }}
+        run: |
+          mods=$(ls "$DIR"/test_*.py | xargs -n1 basename | sed 's/\.py$//')
+          if [ "$INVERT" = "true" ]; then
+            mods=$(echo "$mods" | grep -vE "$PICK")
+          else
+            mods=$(echo "$mods" | grep -E "$PICK")
+          fi
+          mods=$(echo "$mods" | sed "s/^/$DIR./")
+          echo "modules: $mods"
+          coverage run -p -m unittest -v $mods
+
+      - name: Upload coverage data
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ matrix.name }}
+          path: .coverage.*
+          include-hidden-files: true
+
+  coverage:
+    needs: tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install coverage
+        run: pip install coverage
+
+      - name: Download coverage data
+        uses: actions/download-artifact@v4
+        with:
+          pattern: coverage-*
+          merge-multiple: true
+
+      - name: Coverage report
+        run: |
+          coverage combine
+          coverage report
+
+  dod:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
 
       - name: Definition-of-Done gates (G1-G6)
         run: python -m incident_commander.dod all
