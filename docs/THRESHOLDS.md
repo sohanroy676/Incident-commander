@@ -208,3 +208,34 @@ reason. The golden set is never used to tune a threshold (DETAILED_ROADMAP secti
 - v1.2 gap closed: once the server is down, later alerts skip the call and now also record `llm_unavailable` in their trace.
 - Traces: `traces/v1.3.txt` (`run --all --llm local`) and `traces/v1.3-evaluate.txt` (`evaluate --llm local`) are real runs against an
   unreachable URL; their DECISION lines equal `traces/run.txt`. Live traces with a real model are still pending and manual.
+
+## Choices that go beyond PHASE5 (v2.2, ic_hub)
+
+`ic_hub/` is the approved portfolio hub (P2, 2026-10-20). It is stdlib only, imports `incident_commander` and `ic_plus`, and is imported by neither.
+It makes no decision: it builds a world, picks a responder, calls the frozen `Commander.run`, and reports the finished case.
+
+- Server: `http.server.ThreadingHTTPServer` bound to 127.0.0.1 only (`python -m ic_hub [--port N]`, default 8765, 0 picks a free port).
+  Quiet by design (`log_message` does nothing). A stalled client times out after 10 s.
+- Checks on every request: Host must be `127.0.0.1:<port>` or `localhost:<port>` (DNS rebinding), Origin must match when present,
+  `/api/*` needs the per-start token in the `X-Hub-Token` header (never the query string). The token is embedded in the page as a `<meta>`
+  tag, so inline script is never needed and the CSP stays `default-src 'none'; script-src 'self'; style-src 'self'; ...` with no `unsafe-*`.
+- Bodies: `Content-Length` required (chunked refused, 411), at most 1 MB (413, refused before it is read), `Content-Type: application/json` (415).
+  JSON is parsed strictly: UTF-8, duplicate keys, `NaN`/`Infinity`/`1e999` and pathological nesting are all rejected.
+- Static files come from a three-entry allowlist (`/`, `/app.js`, `/app.css`); no path is built from the request.
+- Upload schema (one service plus one alert): `flat`/`step`/`ramp` series, baselines > 0, deployments (at most 10), dependencies (at most 5, must
+  already exist, no self or repeat), remediation effects for known actions with both outcomes. Times must lie within 400 days of the demo
+  anchor `T0`; `fired_at` and `anchor` must sit on the 60 s grid. Names clashing with built-in or earlier uploaded services or alerts are refused.
+  At most 20 uploads. All errors are returned per field. A run takes its time window from the alert only, so no request can ask for a huge window.
+- `HubWorld(SimWorld)` adds uploaded services, alerts and effects; a (service, action) pair without an uploaded effect falls back to the graded behaviour.
+- Runs: one background thread each, at most 2 at a time (429 beyond that), the last 50 are kept. Approver modes: `scripted` (the graded wiring, priya
+  silent and devon approves after 0.1 s), `silent` (nobody answers), `web` (a person in the page). Default deadline per page is the graded 0.3 s for
+  `scripted`/`silent` and 20 s for `web`; `deadline_s` is capped at 60 s (a web run can take twice that).
+- Web approval: `WebResponder.poll` opens a pending page with a fresh nonce; `submit` accepts only the current nonce, once, before its deadline
+  (`accepted`, `stale`, `expired`, `bad_decision`; anything but `accepted` is HTTP 409). The gate still owns the real deadline and the escalation.
+  The page says that approver identity is simulated.
+- Replay: the page animates the finished trace (250 ms per event, with a skip button). Live streaming of the trace waits for v3.0 (`on_event`).
+- Injection playground: runs the same alert twice (clean, then with one planted log line) and compares `case_decision_lines`; it reports `unchanged`.
+- Postmortem: render, Markdown and JSON export (`dataclasses.asdict`), and an explicit Publish that goes to the in-memory `OutboxNotifier` only.
+- Page rule: every server string is set with `textContent`; a test fails if `app.js` contains an HTML sink or the page an inline script or handler.
+- Parity: the DECISION lines of ALRT-9001, 9002 and 9003 through the hub (scripted) are checked against `traces/run.txt`; the planted-log runs match too.
+- Not in v2.2 (still planned for v2.3): charts, what-if toggles, evaluate view, explain box, run history, audit log, Alertmanager intake.
