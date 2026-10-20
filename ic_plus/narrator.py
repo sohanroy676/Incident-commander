@@ -102,9 +102,10 @@ def narrate(case: Case, client: LLMClient | None) -> NarratorOutcome:
         case.trace.emit("llm_rejected", role="narrator", reason=reason)
         lines = (f"llm_rejected role=narrator alert={case.alert.alert_id} reason={reason}",)
         return NarratorOutcome("rejected", (*lines, REJECTED_LINE))
+    assert result.data is not None  # ok means the guard returned data
     case.trace.emit("llm_ok", role="narrator", model=_printable(reply.model, 60), guard="pass")
-    lines = (
+    ok_lines = (
         f"llm: ok role=narrator model={_printable(reply.model, 60)} guard=pass",
         narrative_line(result.data),
     )
-    return NarratorOutcome("ok", lines, result.data)
+    return NarratorOutcome("ok", ok_lines, result.data)

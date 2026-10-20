@@ -1,7 +1,7 @@
 # Active Context
 
 ## Current focus
-v2.2 hub core is built on branch `v2.2-hub` (committed locally; merge, push and tag await your approval). P2 is approved. Older focus: v2.0 extended release is merged to main, pushed, CI green and tagged `v2.0`. `incident_commander/` stays frozen (tag `v1.0`). All planned versions are done; remaining work is submission and viva rehearsal (docs/DEMO.md).
+v2.2 hub core is merged to main and pushed; tag `v2.2` waits for green CI. P2 is approved. Older focus: v2.0 extended release is merged to main, pushed, CI green and tagged `v2.0`. `incident_commander/` stays frozen (tag `v1.0`). All planned versions are done; remaining work is submission and viva rehearsal (docs/DEMO.md).
 
 ## Recent decisions
 - Specs came from docs/PHASE1-5.md (now committed). Deviations from PHASE5 are listed in docs/THRESHOLDS.md
@@ -50,4 +50,4 @@ v1.2 choices are in docs/THRESHOLDS.md ("Choices that go beyond PHASE5 (v1.2)"):
 Gotchas: `.claude/settings.json` has an uncommitted local change; leave it unless asked. Reading `.env` via Bash is denied by settings, so tests never depend on it (flags plus a patched `load_env`). `traces/v1.2-live.txt` and a v1.3 live trace (a real local or hosted model run, e.g. `evaluate --llm local`) are still pending and manual. Gotcha: `git merge` does not accept `-F -`; use `-m`. Heredoc-appended text to CRLF Python files leaves mixed endings (normalise with a patch script).
 
 ## v2.2 hub (2026-10-20)
-`ic_hub/` is built (see progress.md and docs/THRESHOLDS.md "v2.2, ic_hub"). Gotchas: the hub token is embedded as a `<meta>` tag (placeholder `__HUB_TOKEN__` in `index.html`); a test forbids HTML sinks in `app.js`, even in comments; golden alerts are ALRT-9101..9103 (G-1..G-3 are golden ids, not alert ids); ALRT-9002 has 4 DECISION lines in `case_decision_lines`. Open: README rewrite (after v2.2 merge), mypy errors in `ic_plus` (left alone), P1/P3/P4/P5 still pending. Local branches awaiting your confirmation to delete: v1.3-roles, docs/v1.3-status, v2.0-release, v2.1-polish, docs/v2.1-status.
+`ic_hub/` is built (see progress.md and docs/THRESHOLDS.md "v2.2, ic_hub"). Gotchas: the hub token is embedded as a `<meta>` tag (placeholder `__HUB_TOKEN__` in `index.html`); a test forbids HTML sinks in `app.js`, even in comments; golden alerts are ALRT-9101..9103 (G-1..G-3 are golden ids, not alert ids); ALRT-9002 has 4 DECISION lines in `case_decision_lines`. Open: README rewrite (after the v2.2 tag), P1/P3/P4/P5 still pending. mypy is clean and gating (`mypy ic_plus ic_hub`); merged local branches were deleted.

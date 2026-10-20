@@ -38,10 +38,9 @@ jobs:
       - name: Format check
         run: ruff format --check .
 
-      # Lenient config; incident_commander/ is excluded (frozen, not fully annotated).
-      # Informational: 13 known errors in ic_plus (v2.1 baseline) are not fixed in a docs/CI release.
-      - name: Type check (extension only, informational)
-        continue-on-error: true
+      # Lenient config; incident_commander/ is excluded (frozen, not fully annotated). Gates since v2.2:
+      # the v2.1 baseline of 13 errors in ic_plus is fixed.
+      - name: Type check (extension and hub)
         run: mypy ic_plus ic_hub
 
       # Fails on high severity only. Known baseline (not fixed here): B310 llm_client.py (urlopen on the

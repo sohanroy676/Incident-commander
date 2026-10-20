@@ -87,6 +87,7 @@ def _run_cli(alert_id: str, deadline_s: float | None, args: argparse.Namespace) 
             print(event_line(event))
     for line in case_decision_lines(case):
         print(line)
+    assert case.draft is not None
     print(postmortem_decision(alert_id, case.draft))
     _Narration(args).show(case)
     _banner(args.llm, "cli")

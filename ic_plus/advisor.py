@@ -96,6 +96,7 @@ def advise(
             REJECTED_LINE,
         )
         return AdvisorOutcome("rejected", EVIDENCE_TOOLS, lines)
+    assert result.data is not None  # ok means the guard returned data
     order = result.data[ADVICE_KEY]
     model = _printable(reply.model, 60)
     emit("llm_ok", model=model, guard="pass", order=",".join(order))
