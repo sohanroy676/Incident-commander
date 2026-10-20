@@ -191,6 +191,12 @@ trace for the report. Do not edit a trace by hand.
 - The graded package imports only the standard library and scikit-learn and never imports `ic_plus`.
 - Time-boxed approval uses a real clock and a real sleep; tests never patch sleep.
 
+## What comes next
+
+Proposed portfolio versions (a local web hub, polish and docs) are described in
+[`docs/EXTENSION_PLAN.md`](docs/EXTENSION_PLAN.md) and [`ROADMAP.md`](ROADMAP.md). They are not built and need
+owner approval; the graded package stays frozen at `v1.0`.
+
 ## Extended build (`ic_plus`, optional)
 
 The extension runs the same pipeline and may add AI-written text under a label. It never makes or changes a

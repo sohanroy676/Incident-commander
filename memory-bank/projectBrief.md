@@ -24,3 +24,9 @@ Two independently demoable builds:
 - Incident queue, JSON/Markdown exports, random fault injection.
 - Multi-agent coordination.
 - Any LLM in the graded build; any LLM making or changing a decision in the extended build.
+
+## Portfolio scope (v2.1+) — PROPOSED, pending owner approval
+The list above is the graded scope and is not edited. A proposal (docs/EXTENSION_PLAN.md) would add, after submission:
+a local stdlib web hub (`ic_hub`), local run history and audit log, Markdown/JSON export, an Alertmanager-shaped
+intake adapter, and later a pluggable core (v3.0, which needs a separate unfreeze approval).
+Until approved, nothing in this section is in scope and `incident_commander/` stays frozen at `v1.0`.
