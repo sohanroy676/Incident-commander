@@ -8,6 +8,8 @@ const POLL_MS = 200;
 
 let currentRun = null;
 let replayTimer = null;
+const finishedRuns = [];
+const SVG_NS = "http://www.w3.org/2000/svg";
 
 async function api(method, path, body) {
   const options = { method, headers: { "X-Hub-Token": TOKEN } };
@@ -56,6 +58,10 @@ function runRequest(alertId) {
   const request = { alert_id: alertId, mode: $("mode").value, fix_outcome: $("fix").value };
   const deadline = $("deadline").value;
   if (deadline !== "") request.deadline_s = Number(deadline);
+  const whatIf = [];
+  if ($("wi-stale").checked) whatIf.push("stale_deployments");
+  if ($("wi-tool").checked) whatIf.push("tool_failure");
+  if (whatIf.length) request.what_if = whatIf;
   return request;
 }
 
@@ -110,6 +116,7 @@ function clearReplay() {
   $("decisions").textContent = "";
   $("skip").hidden = true;
   setPostmortem(null);
+  renderChart(null);
 }
 
 function eventText(e) {
@@ -119,6 +126,8 @@ function eventText(e) {
 
 function showResult(result) {
   $("run-status").textContent = `Replaying the finished trace. Final state: ${result.state}`;
+  renderChart(result.chart);
+  rememberRun(currentRun);
   const list = $("trace");
   let i = 0;
   const finish = () => {
@@ -138,6 +147,78 @@ function showResult(result) {
   };
   step();
 }
+
+function svgEl(name, attrs, text) {
+  const node = document.createElementNS(SVG_NS, name);
+  for (const [key, value] of Object.entries(attrs)) node.setAttribute(key, String(value));
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+
+function renderChart(chart) {
+  const svg = $("chart");
+  svg.replaceChildren();
+  svg.hidden = !chart;
+  if (!chart) {
+    $("chart-desc").textContent = "No chart for this run.";
+    return;
+  }
+  const W = 640, H = 240, L = 48, R = 12, T = 12, B = 30;
+  const span = chart.window_end - chart.window_start || 1;
+  const values = chart.points.map((p) => p[1]).concat([chart.baseline, chart.limit]);
+  const top = Math.max(...values) * 1.1 || 1;
+  const x = (t) => L + ((t - chart.window_start) / span) * (W - L - R);
+  const y = (v) => H - B - (v / top) * (H - B - T);
+  svg.appendChild(svgEl("line", { class: "axis", x1: L, y1: H - B, x2: W - R, y2: H - B }));
+  svg.appendChild(svgEl("line", { class: "axis", x1: L, y1: T, x2: L, y2: H - B }));
+  svg.appendChild(svgEl("text", { x: 4, y: T + 8 }, top.toPrecision(3)));
+  svg.appendChild(svgEl("text", { x: 4, y: H - B }, "0"));
+  svg.appendChild(svgEl("line", { class: "baseline", x1: L, y1: y(chart.baseline), x2: W - R, y2: y(chart.baseline) }));
+  svg.appendChild(svgEl("line", { class: "limit", x1: L, y1: y(chart.limit), x2: W - R, y2: y(chart.limit) }));
+  svg.appendChild(svgEl("text", { x: L + 4, y: y(chart.baseline) + 11 }, `baseline ${chart.baseline}`));
+  svg.appendChild(svgEl("text", { x: L + 4, y: y(chart.limit) - 3 }, "verify limit (baseline x 1.10)"));
+  const path = chart.points.map(([t, v], i) => `${i ? "L" : "M"}${x(t).toFixed(1)} ${y(v).toFixed(1)}`).join(" ");
+  svg.appendChild(svgEl("path", { class: "series", d: path }));
+  const marks = [["fired", chart.fired_at], ["fix", chart.executed_at], ["verified", chart.verify_end]];
+  for (const [label, t] of marks) {
+    if (t === null) continue;
+    svg.appendChild(svgEl("line", { class: "mark", x1: x(t), y1: T, x2: x(t), y2: H - B }));
+    svg.appendChild(svgEl("text", { x: x(t) + 3, y: T + 18 }, label));
+  }
+  for (const d of chart.deployments) {
+    const cx = x(d.at);
+    svg.appendChild(svgEl("path", { class: "deploy", d: `M${cx} ${H - B - 9} l5 9 h-10 z` }));
+    svg.appendChild(svgEl("text", { x: cx + 6, y: H - B - 12 }, d.version));
+  }
+  const last = chart.points[chart.points.length - 1];
+  $("chart-desc").textContent =
+    `${chart.service} ${chart.metric}: ${chart.points.length} samples, baseline ${chart.baseline}, ` +
+    `last value ${last ? last[1] : "n/a"}, ${chart.deployments.length} deployment(s) in the window.`;
+}
+
+function rememberRun(runId) {
+  if (finishedRuns[finishedRuns.length - 1] === runId) return;
+  finishedRuns.push(runId);
+  if (finishedRuns.length > 2) finishedRuns.shift();
+  $("diff-btn").disabled = finishedRuns.length < 2;
+}
+
+$("diff-btn").addEventListener("click", async () => {
+  const { ok, data } = await api("POST", "/api/diff", { a: finishedRuns[0], b: finishedRuns[1] });
+  if (!ok) {
+    $("diff").textContent = describe(data);
+    return;
+  }
+  const lines = [
+    `state: ${data.state[0]} -> ${data.state[1]}`,
+    `handoff: ${data.handoff_reason[0]} -> ${data.handoff_reason[1]}`,
+    data.same_decisions ? "DECISION lines: identical" : "DECISION lines: differ",
+    ...data.only_in_a.map((l) => `- ${l}`),
+    ...data.only_in_b.map((l) => `+ ${l}`),
+    data.same_trace_kinds ? "trace kinds: identical" : "trace kinds differ",
+  ];
+  $("diff").textContent = lines.join("\n");
+});
 
 function appendEvent(list, event) {
   const li = document.createElement("li");

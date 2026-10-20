@@ -19,7 +19,13 @@ from urllib.parse import urlsplit
 from incident_commander.postmortem import render
 
 from .runner import Conflict, Hub, NotFound, TooManyRuns
-from .schema import MAX_BODY_BYTES, ValidationError, parse_json, validate_run_request
+from .schema import (
+    MAX_BODY_BYTES,
+    ValidationError,
+    parse_diff_request,
+    parse_json,
+    validate_run_request,
+)
 
 HOST = "127.0.0.1"
 STATIC_DIR = Path(__file__).resolve().parent / "static"
@@ -186,6 +192,12 @@ class _Handler(BaseHTTPRequestHandler):
             if playground and not req["text"]:
                 raise ValidationError({"text": "is required"})
             self._json(202, {"run_id": hub.start(req, playground=playground).run_id})
+        elif method == "POST" and path == "/api/diff":
+            body = self._body()
+            if body is None:
+                return
+            ids = parse_diff_request(body)
+            self._json(200, hub.diff(*ids))
         else:
             self._run_route(method, path)
 
