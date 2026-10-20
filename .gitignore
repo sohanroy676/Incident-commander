@@ -30,3 +30,6 @@ npm-debug.log*
 # Local/venv
 .venv/
 .claude/settings.local.json
+*.egg-info/
+build/
+.coverage

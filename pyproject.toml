@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "incident-commander"
+version = "2.0.0"
+description = "A deterministic incident-response agent over simulated data, with an optional LLM extension that never decides."
+readme = "README.md"
+requires-python = ">=3.10"
+dynamic = ["dependencies"]
+
+[project.scripts]
+incident-commander = "incident_commander.__main__:main"
+ic-plus = "ic_plus.__main__:main"
+
+[tool.setuptools]
+packages = ["incident_commander", "incident_commander.fixtures", "ic_plus"]
+
+# requirements.txt stays the single source of the scikit-learn pin.
+[tool.setuptools.dynamic]
+dependencies = { file = ["requirements.txt"] }
+
+[tool.coverage.run]
+source = ["incident_commander", "ic_plus"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_empty = true
+
+# Lenient on purpose; the graded package is frozen and not fully annotated.
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true
+follow_imports = "silent"
+check_untyped_defs = false
+exclude = ["^incident_commander/", "^tests/", "^tests_plus/"]
+
+[tool.bandit]
+exclude_dirs = ["tests", "tests_plus", ".venv"]
