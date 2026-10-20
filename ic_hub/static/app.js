@@ -34,6 +34,7 @@ async function loadAlerts() {
   const body = document.querySelector("#alerts tbody");
   body.replaceChildren();
   $("play-alert").replaceChildren();
+  $("ex-alert").replaceChildren();
   for (const a of data.alerts) {
     const row = document.createElement("tr");
     cell(row, a.alert_id);
@@ -51,6 +52,7 @@ async function loadAlerts() {
     option.value = a.alert_id;
     option.textContent = `${a.alert_id} (${a.service})`;
     $("play-alert").appendChild(option);
+    $("ex-alert").appendChild(option.cloneNode(true));
   }
 }
 
@@ -275,6 +277,74 @@ $("play").addEventListener("click", async () => {
     $("play-status").textContent = view.result.unchanged ? "DECISION lines unchanged." : "DECISION lines DIFFER.";
   };
   poll();
+});
+
+async function pollJob(runId, status, onDone) {
+  const view = (await api("GET", `/api/runs/${runId}`)).data;
+  if (view.status === "running") return setTimeout(() => pollJob(runId, status, onDone), POLL_MS);
+  if (view.status === "error") {
+    status.textContent = `Failed: ${view.error}`;
+    return;
+  }
+  onDone(view.result);
+}
+
+$("ex-llm").addEventListener("change", () => {
+  const hosted = $("ex-llm").value === "hosted";
+  $("ex-warn").hidden = !hosted;
+  $("ex-ack-row").hidden = !hosted;
+  if (!hosted) $("ex-ack").checked = false;
+});
+
+$("ex-btn").addEventListener("click", async () => {
+  $("ex-out").textContent = "";
+  $("ex-status").textContent = "Asking...";
+  const request = {
+    alert_id: $("ex-alert").value,
+    question: $("ex-question").value,
+    llm: $("ex-llm").value,
+    acknowledge_remote: $("ex-ack").checked,
+  };
+  const { ok, data } = await api("POST", "/api/explain", request);
+  if (!ok) {
+    $("ex-status").textContent = describe(data);
+    return;
+  }
+  pollJob(data.run_id, $("ex-status"), (result) => {
+    $("ex-out").textContent = result.lines.join("\n");
+    const sent = result.remote ? " The question and facts were sent to the hosted service." : "";
+    const note = result.configured ? "" : ` Not configured on the server (missing ${result.missing.join(", ")}).`;
+    $("ex-status").textContent = `Status: ${result.status}.${sent}${note}`;
+  });
+});
+
+function evalText(r) {
+  const lines = [
+    `llm: ${r.llm}${r.configured ? "" : ` (not configured: missing ${r.missing.join(", ")})`}`,
+    `golden: ${r.golden_passed}/${r.golden.length} passed`,
+    ...r.golden.map((g) => `  ${g.golden_id} ${g.alert_id} verdict=${g.verdict} runbook=${g.runbook} action=${g.action} passed=${g.passed}`),
+    `attack: unchanged=${r.attack.unchanged} inputs_identical=${r.attack.inputs_identical} decision_lines_identical=${r.attack.decision_lines_identical}`,
+    ...r.attack.variants.map(([name, ok]) => `  ${name} unchanged=${ok}`),
+    `naive baseline: wrong on ${r.naive_wrong} of ${r.naive.length}`,
+    ...r.x3.map((x) => `x3 ${x.alert_id} advisor=${x.advisor} narrator=${x.narrator} explainer=${x.explainer} order=${x.order.join(",")} identical=${x.identical}`),
+    `decisions_changed=${r.decisions_changed}`,
+  ];
+  return lines.join("\n");
+}
+
+$("eval-btn").addEventListener("click", async () => {
+  $("eval-out").textContent = "";
+  $("eval-status").textContent = "Running the evaluation...";
+  const request = { llm: $("eval-llm").value, acknowledge_remote: $("eval-ack").checked };
+  const { ok, data } = await api("POST", "/api/evaluate", request);
+  if (!ok) {
+    $("eval-status").textContent = describe(data);
+    return;
+  }
+  pollJob(data.run_id, $("eval-status"), (result) => {
+    $("eval-out").textContent = evalText(result);
+    $("eval-status").textContent = result.decisions_changed === 0 ? "Done. No decision changed." : "Done. A DECISION line CHANGED.";
+  });
 });
 
 $("upload-btn").addEventListener("click", async () => {

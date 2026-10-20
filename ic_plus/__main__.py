@@ -17,14 +17,13 @@ from incident_commander.retrieval import HybridRanker
 from incident_commander.world import SimWorld
 
 from .approver_cli import CliResponder
+from .clientcfg import build_client
 from .envfile import load_env
 from .explainer import FALLBACK_LABEL, clean_question, explain, template_answer
 from .llm_client import LLMClient
 from .narrator import UNAVAILABLE_LINE, build_facts, narrate
 from .scenarios import SCENARIOS, _commander
 from .x3 import ROLES_LINE, advised_orders, advised_orders_of, run_x3
-
-LOCAL_URL = "http://localhost:11434/v1"
 
 
 def _banner(llm: str, approver: str) -> None:
@@ -33,17 +32,10 @@ def _banner(llm: str, approver: str) -> None:
 
 def _make_client(args: argparse.Namespace) -> LLMClient | None:
     """Flags beat the dotenv file beat the local default. None means "not configured" (fallback)."""
-    env = load_env()
-    url = args.llm_url or env.get("LLM_BASE_URL") or (LOCAL_URL if args.llm == "local" else "")
-    model = args.model or env.get("LLM_MODEL") or ""
-    key = env.get("LLM_API_KEY") if args.llm == "hosted" else None  # local servers ignore keys
-    if not url or not model or (args.llm == "hosted" and not key):
-        missing = [n for n, v in (("url", url), ("model", model)) if not v]
-        if args.llm == "hosted" and not key:
-            missing.append("key")
+    client, missing = build_client(args.llm, args.llm_url, args.model, load_env())
+    if client is None:
         print(f"llm: not configured (missing {', '.join(missing)})", file=sys.stderr)
-        return None
-    return LLMClient(url, model, key)
+    return client
 
 
 class _Narration:

@@ -75,6 +75,37 @@
     <p id="pm-error" class="error" role="alert"></p>
   </section>
 
+  <section aria-labelledby="h-eval">
+    <h2 id="h-eval">Evaluate</h2>
+    <p class="note">Runs the graded golden set, the planted-log attack and the naive baseline, then the LLM roles on every fixture (X3). The DECISION lines must not change.</p>
+    <div class="controls">
+      <label>LLM
+        <select id="eval-llm"><option value="off">off</option><option value="local">local</option><option value="hosted">hosted</option></select>
+      </label>
+      <label class="inline"><input type="checkbox" id="eval-ack"> I understand hosted mode sends incident facts to a remote service</label>
+    </div>
+    <button id="eval-btn" type="button">Run evaluation</button>
+    <p id="eval-status" aria-live="polite"></p>
+    <pre id="eval-out"></pre>
+  </section>
+
+  <section aria-labelledby="h-explain">
+    <h2 id="h-explain">Explain a run</h2>
+    <p class="note">Ask why the agent acted as it did. The answer is labelled, checked against the facts and never read by a decision. Local and hosted settings come from the server; this page never sees a key.</p>
+    <div class="controls">
+      <label>Alert <select id="ex-alert"></select></label>
+      <label>Question <input id="ex-question" type="text" maxlength="200" value="why did the agent act this way?"></label>
+      <label>LLM
+        <select id="ex-llm"><option value="off">off (template)</option><option value="local">local</option><option value="hosted">hosted</option></select>
+      </label>
+    </div>
+    <p id="ex-warn" class="error" hidden>Hosted mode sends your question and this incident's facts to a remote service. They leave this machine.</p>
+    <label class="inline" id="ex-ack-row" hidden><input type="checkbox" id="ex-ack"> I understand and want to send them</label>
+    <button id="ex-btn" type="button">Explain</button>
+    <p id="ex-status" aria-live="polite"></p>
+    <pre id="ex-out"></pre>
+  </section>
+
   <section aria-labelledby="h-play">
     <h2 id="h-play">Injection playground</h2>
     <p class="note">Plants one line in the alert service's logs and runs the alert twice. The DECISION lines must not change.</p>
