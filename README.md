@@ -1,12 +1,25 @@
 # Incident Commander (PS4)
 
+[![CI](https://github.com/sohanroy676/incident-commander/actions/workflows/ci.yml/badge.svg)](https://github.com/sohanroy676/incident-commander/actions/workflows/ci.yml)
+![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)
+
 A deterministic incident-response agent over simulated production data (Sem VII Agentic AI course).
 It investigates alerts from real signals, gates risky fixes behind time-boxed human approval, verifies
-the fix, and drafts a postmortem. An optional LLM extension (`ic_plus`) never makes decisions.
+the fix, and drafts a postmortem. An optional LLM extension (`ic_plus`) never makes decisions, and a local
+web hub (`ic_hub`) lets you run, approve and replay incidents in a browser.
 
-**Status: v2.0 Extended release** (graded build tagged `v1.0`). All eight milestones (M1 to M8) run end to end with one command, and all
-six Definition-of-Done gates (G1 to G6) pass with one command. The graded package `incident_commander/` is
-frozen from here on. Planning documents: `ROADMAP.md`, `docs/DETAILED_ROADMAP.md`, `docs/PHASE1.md` to `PHASE5.md`.
+**What makes it interesting**
+
+- **Decisions come from typed evidence only.** Severity labels, log text and model output never reach a decision. A planted
+  prompt-injection log line is run side by side with a clean run, and the DECISION lines are identical (gate G4).
+- **Approval is real.** A page has a real monotonic deadline and a real sleep, escalates from priya to devon, and a high-tier fix cannot run without the token.
+- **Fixes are verified, not assumed.** The agent re-queries the alert's own metric after the fix; a fix that does not resolve it is reopened and handed to a human, never retried automatically.
+- **The LLM is optional and boxed in.** With it on or off the decisions are identical; every reply passes a deterministic guard and falls back to a template.
+- **It tests itself.** Six Definition-of-Done gates, a golden set, a naive baseline for comparison, and an unedited trace as evidence (`traces/run.txt`).
+
+**Status: v2.2 (local hub).** The graded build is tagged `v1.0` and `incident_commander/` is frozen (`git diff v1.0 -- incident_commander/`
+is empty). All eight milestones (M1 to M8) run with one command and all six gates (G1 to G6) pass with one command.
+Planning documents: `ROADMAP.md`, `docs/DETAILED_ROADMAP.md`, `docs/PHASE1.md` to `PHASE5.md`, `docs/ARCHITECTURE.md`.
 
 Stack: Python 3.12 (works on 3.10 and later), standard library plus scikit-learn only. The graded build reads
 no environment variables, no keys and no network. Verified on Python 3.12.10 with scikit-learn 1.9.1.
@@ -173,12 +186,13 @@ Predicates print as `TRUE`, `FALSE` or `UNKNOWN`. A stale or failed observation 
 ```
 python -m unittest discover -s tests -v          # graded build, about 3 minutes
 python -m unittest discover -s tests_plus -v     # extension, about 5 minutes
+python -m unittest discover -s tests_hub -t . -v # hub, about 40 seconds
 python -m incident_commander.dod all             # gates G1-G6, about 30 seconds
 ruff check .                                     # lint
 ruff format --check .                            # format check; drop --check to rewrite files
 ```
 
-CI runs ruff, both test suites and `dod all` on Ubuntu with Python 3.12.
+CI runs ruff, mypy (`ic_plus`, `ic_hub`), bandit, pip-audit, the three test suites (sharded) with coverage, and `dod all` on Ubuntu with Python 3.12.
 
 `docs/THRESHOLDS.md` lists every tunable, where it lives (`incident_commander/config.py`) and the choices made
 beyond the written spec. `traces/` holds the real, unedited output of each version; `traces/run.txt` is the
@@ -193,9 +207,9 @@ trace for the report. Do not edit a trace by hand.
 
 ## What comes next
 
-Proposed portfolio versions (a local web hub, polish and docs) are described in
-[`docs/EXTENSION_PLAN.md`](docs/EXTENSION_PLAN.md) and [`ROADMAP.md`](ROADMAP.md). They are not built and need
-owner approval; the graded package stays frozen at `v1.0`.
+The hub extras (v2.3: charts, what-if toggles, evaluate view, run history, audit log, Alertmanager-shaped intake) and the
+pluggable core (v3.0, which needs a separate unfreeze approval) are proposed in
+[`docs/EXTENSION_PLAN.md`](docs/EXTENSION_PLAN.md) and [`ROADMAP.md`](ROADMAP.md). Until v3.0 is approved the graded package stays frozen at `v1.0`.
 
 ## Extended build (`ic_plus`, optional)
 
@@ -215,3 +229,21 @@ Add `--llm local --llm-url http://localhost:11434/v1 --model llama3.2` to `run`,
 Ollama. Without a reachable model the run prints `llm: unavailable, deterministic fallback`. Demo scripts and
 recorded model runs (`traces/v1.2-live.txt`, `traces/v1.3-live-evaluate.txt`) are in `docs/DEMO.md`. Gates
 X1-X4 are checked by `tests_plus/test_release.py`.
+
+## Local hub (`ic_hub`, optional)
+
+A browser page over the same pipeline, standard library only, listening on 127.0.0.1.
+
+```
+python -m ic_hub                 # then open http://127.0.0.1:8765/   (--port 0 picks a free port)
+```
+
+- Run any demo, golden or uploaded incident; the finished trace replays on screen, with the DECISION lines below it.
+- Choose the approver: scripted (the graded wiring), silent, or you, in the page. Approve or deny within the deadline; the card is bound to one pending page.
+  Approver names (priya, devon) are simulated, not authenticated.
+- Upload a service and an alert as JSON (flat, step or ramp signals, deployments, dependencies, remediation effects). Every field is validated and bounded.
+- Injection playground: plant one log line, run the alert twice, and see that the DECISION lines do not change.
+- Read the postmortem draft, publish it (to an in-memory outbox only) or export it as Markdown or JSON.
+
+Security checks (Host, Origin, per-start token, 1 MB body cap, strict JSON, strict CSP, text-only rendering) and every choice beyond the plan are listed in
+`docs/THRESHOLDS.md` under "v2.2, ic_hub". The hub imports `incident_commander` and `ic_plus`; neither imports the hub.
