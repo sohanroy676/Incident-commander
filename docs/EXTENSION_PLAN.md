@@ -17,7 +17,7 @@ Nothing below is decided. Work on these items does not start until the owner say
 | # | Decision | Needed by |
 |---|---|---|
 | P1 | **v3.0 unfreeze** of `incident_commander/` (items 35-37 only) | before v3.0; after course submission and viva |
-| P2 | **Portfolio scope (v2.1+)**: a new section in `projectBrief.md` / `ROADMAP.md` that allows a web UI, local persistence, exports and an intake adapter. The graded "Out of scope" list stays untouched | before v2.2 |
+| P2 | **Portfolio scope (v2.1+)**: a new section in `projectBrief.md` / `ROADMAP.md` that allows a web UI, local persistence, exports and an intake adapter. The graded "Out of scope" list stays untouched | **APPROVED 2026-10-20** (owner) |
 | P3 | **Re-baselining X1** (`tests_plus/test_release.py:41` diffs against `v1.0`) to a later tag when v3.0 lands | with P1 |
 | P4 | **Public Pages demo** (item 41): publishes content outward | before item 41 |
 | P5 | **Item 40** (new predicates): edits the frozen predicate registry, so it is a separate decision | before item 40 |
