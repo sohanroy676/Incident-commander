@@ -33,3 +33,6 @@ npm-debug.log*
 *.egg-info/
 build/
 .coverage
+
+# hub run history and audit log (opt-in --data-dir)
+data/

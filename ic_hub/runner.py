@@ -50,6 +50,7 @@ from .schema import (
     ValidationError,
     validate_upload,
 )
+from .store import Store
 from .world import HubWorld
 
 MAX_CONCURRENT_RUNS = 2
@@ -126,8 +127,11 @@ class Run:
 class Hub:
     """Uploads, runs and their limits. One instance per server."""
 
-    def __init__(self, client_factory: ClientFactory = client_from_env) -> None:
+    def __init__(
+        self, client_factory: ClientFactory = client_from_env, store: Store | None = None
+    ) -> None:
         self._client_factory = client_factory
+        self.store = store
         self._lock = threading.Lock()
         self._uploads: list[Upload] = []
         self._runs: OrderedDict[str, Run] = OrderedDict()
@@ -143,7 +147,8 @@ class Hub:
             alerts = BUILTIN_ALERTS | {u.alert.alert_id for u in self._uploads}
             upload = validate_upload(raw, services, alerts)
             self._uploads.append(upload)
-            return upload
+        self._audit("upload_added", alert_id=upload.alert.alert_id, service=upload.service.name)
+        return upload
 
     def uploads(self) -> tuple[Upload, ...]:
         with self._lock:
@@ -196,6 +201,15 @@ class Hub:
             deadline = WEB_DEFAULT_DEADLINE_S if mode == "web" else APPROVAL_DEADLINE_S
         if mode == "web" and not playground:
             run.responder = WebResponder(deadline)
+        if not playground:
+            self._audit(
+                "run_started",
+                run_id=run.run_id,
+                alert_id=run.alert_id,
+                mode=mode,
+                fix_outcome=req["fix_outcome"],
+                what_if=",".join(str(x) for x in req.get("what_if") or ()),  # type: ignore[attr-defined]
+            )
         thread = threading.Thread(
             target=self._execute, args=(run, uploads, req, deadline), daemon=True
         )
@@ -236,6 +250,7 @@ class Hub:
         def job() -> None:
             try:
                 run.result = work()
+                self._audit_job(run)
                 run.status = "done"
             except Exception as exc:  # noqa: BLE001 - reported to the page, never silently dropped
                 run.error = f"{type(exc).__name__}: {exc}"
@@ -287,6 +302,7 @@ class Hub:
                 case = commander.run(world.alert(run.alert_id), fix_outcome=str(req["fix_outcome"]))
                 run.case, run.commander = case, commander
                 run.result = {**self._summary(case), "chart": build_chart(world, case)}
+                self._persist(run, req)
             run.status = "done"
         except Exception as exc:  # noqa: BLE001 - reported to the page, never silently dropped
             run.error = f"{type(exc).__name__}: {exc}"
@@ -398,7 +414,16 @@ class Hub:
         run = self.get(run_id)
         if run.responder is None or run.status != "running":
             raise Conflict("this run is not waiting for a web approval")
-        return run.responder.submit(nonce, decision)
+        pending = run.responder.pending()
+        outcome = run.responder.submit(nonce, decision)
+        self._audit(
+            "approval_answer",
+            run_id=run_id,
+            target=pending["target"] if pending else "",
+            decision=decision if decision in ("approve", "deny") else "invalid",
+            outcome=outcome,
+        )
+        return outcome
 
     def publish(self, run_id: str) -> dict[str, object]:
         """The explicit, human-triggered side effect. The notifier is the in-memory outbox."""
@@ -411,7 +436,101 @@ class Hub:
             except IllegalTransition as exc:
                 raise Conflict(f"already published or not publishable: {exc}") from None
             run.result = {**self._summary(run.case), "chart": (run.result or {}).get("chart")}
+        self._persist(run, None)
+        self._audit("published", run_id=run_id, alert_id=run.alert_id)
         return run.result
+
+    # -- history and audit (only when the server was started with a data directory) --------
+
+    def _audit(self, event: str, **detail: object) -> None:
+        if self.store is not None:
+            self.store.append(event, **detail)
+
+    def _persist(self, run: Run, req: Mapping[str, object] | None) -> None:
+        """Store the finished run and note it in the audit log. Never fails the run."""
+        if self.store is None or run.case is None or run.result is None:
+            return
+        case = run.case
+        verdict = case.investigation.verdict if case.investigation else None
+        saved = self.store.save_run(
+            {
+                "run_id": run.run_id,
+                "alert_id": run.alert_id,
+                "service": case.alert.service,
+                "runbook": verdict.runbook_id if verdict else None,
+                "mode": run.mode,
+                "state": case.state,
+                "published": bool(run.result.get("published")),
+                "result": run.result,
+            }
+        )
+        if req is not None:
+            self._audit(
+                "run_finished",
+                run_id=run.run_id,
+                alert_id=run.alert_id,
+                state=case.state,
+                handoff_reason=case.handoff_reason or "",
+                stored=saved,
+            )
+
+    def _audit_job(self, run: Run) -> None:
+        result = run.result or {}
+        if run.kind == "explain":
+            self._audit(
+                "explain_finished",
+                run_id=run.run_id,
+                alert_id=run.alert_id,
+                llm=run.mode,
+                status=result.get("status"),
+                remote=result.get("remote"),
+            )
+        elif run.kind == "evaluate":
+            self._audit(
+                "evaluate_finished",
+                run_id=run.run_id,
+                llm=run.mode,
+                decisions_changed=result.get("decisions_changed"),
+                remote=result.get("remote"),
+            )
+
+    def history(self) -> dict[str, object]:
+        if self.store is None:
+            return {"enabled": False, "runs": [], "write_error": None}
+        return {
+            "enabled": True,
+            "runs": self.store.list_runs(),
+            "write_error": self.store.last_error,
+        }
+
+    def history_get(self, run_id: str) -> dict[str, object]:
+        record = self.store.get_run(run_id) if self.store else None
+        if record is None:
+            raise NotFound("no such stored run")
+        return record
+
+    def audit(self) -> dict[str, object]:
+        if self.store is None:
+            return {"enabled": False, "entries": [], "verify": None}
+        return {"enabled": True, "entries": self.store.tail(), "verify": self.store.verify()}
+
+    def similar(self, run_id: str) -> dict[str, object]:
+        """Earlier stored runs like this one. Advisory only: nothing here reaches a decision."""
+        if self.store is None:
+            return {"enabled": False, "runs": []}
+        with self._lock:
+            live = self._runs.get(run_id)
+        if live is not None and live.case is not None:
+            case = live.case
+            verdict = case.investigation.verdict if case.investigation else None
+            service: object = case.alert.service
+            runbook: object = verdict.runbook_id if verdict else None
+        else:
+            record = self.store.get_run(run_id)
+            if record is None:
+                raise NotFound("no such run")
+            service, runbook = record.get("service"), record.get("runbook")
+        return {"enabled": True, "runs": self.store.similar(run_id, service, runbook)}
 
     def diff(self, a_id: str, b_id: str) -> dict[str, object]:
         """Compare two finished runs (not playgrounds)."""

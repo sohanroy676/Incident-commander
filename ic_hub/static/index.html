@@ -59,6 +59,21 @@
     <p id="chart-desc">Run an incident to see its chart.</p>
   </section>
 
+  <section aria-labelledby="h-history">
+    <h2 id="h-history">History and audit</h2>
+    <p id="history-off" class="note">Off. Start the hub with <code>--data-dir data</code> to keep finished runs and a hash-chained audit log on this machine.</p>
+    <div id="history-on" hidden>
+      <p class="note">Stored runs, newest first. Similar earlier runs are shown for a human to read; they never reach a decision.</p>
+      <table id="history"><thead><tr><th>Run</th><th>Alert</th><th>Service</th><th>State</th><th></th></tr></thead><tbody></tbody></table>
+      <p id="history-error" class="error" role="alert"></p>
+      <h3>Similar earlier runs</h3>
+      <ul id="similar"></ul>
+      <button id="audit-btn" type="button">Verify audit log</button>
+      <p id="audit-status" aria-live="polite"></p>
+      <pre id="audit-out"></pre>
+    </div>
+  </section>
+
   <section aria-labelledby="h-diff">
     <h2 id="h-diff">Compare runs</h2>
     <p class="note">Compares the last two finished incident runs from this page.</p>

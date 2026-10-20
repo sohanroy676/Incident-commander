@@ -40,7 +40,7 @@ class HubTestCase(unittest.TestCase):
     client_factory = None  # tests that need an LLM set a factory: mode -> (client, missing)
 
     def setUp(self) -> None:
-        self.server = make_server(0, self.client_factory)
+        self.server = make_server(0, self.client_factory, getattr(self, "store", None))
         thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         thread.start()
         self.addCleanup(self._stop, thread)
