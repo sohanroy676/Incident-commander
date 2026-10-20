@@ -34,6 +34,7 @@ MAX_PLANTED_LINES = 5
 MAX_PLANTED_CHARS = 300
 MAX_SUMMARY_CHARS = 200
 MAX_DEADLINE_S = 60.0
+WHAT_IFS = ("stale_deployments", "tool_failure")
 TIME_MIN = T0 - 400 * DAY_S
 TIME_MAX = T0 + 400 * DAY_S
 LEVEL_MAX = 1_000_000.0
@@ -289,10 +290,12 @@ def _effects(c: _Collector, raw: object) -> dict[str, dict[str, float]]:
 def validate_run_request(
     raw: object, known_alerts: frozenset[str], known_services: Callable[[str], bool]
 ) -> dict[str, object]:
-    """A run or playground request: alert_id, mode, fix_outcome, deadline_s, planted_logs."""
+    """A run or playground request: alert_id, mode, fix_outcome, deadline_s, planted_logs, what_if."""
     c = _Collector()
     req = c.obj(
-        "request", raw, ("alert_id", "mode", "fix_outcome", "deadline_s", "planted_logs", "text")
+        "request",
+        raw,
+        ("alert_id", "mode", "fix_outcome", "deadline_s", "planted_logs", "text", "what_if"),
     )
     alert_id = req.get("alert_id")
     if not isinstance(alert_id, str) or alert_id not in known_alerts:
@@ -307,6 +310,7 @@ def validate_run_request(
     if deadline is not None:
         deadline = c.num("deadline_s", deadline, 0, MAX_DEADLINE_S, lo_open=True)
     planted = _planted(c, req.get("planted_logs", {}), known_services)
+    what_if = _what_if(c, req.get("what_if", []))
     text = req.get("text")
     if text is not None:
         text = c.free_text("text", text, MAX_PLANTED_CHARS)
@@ -319,7 +323,33 @@ def validate_run_request(
         "deadline_s": deadline,
         "planted_logs": planted,
         "text": text,
+        "what_if": what_if,
     }
+
+
+def parse_diff_request(raw: object) -> tuple[str, str]:
+    """{"a": run_id, "b": run_id}; ids are the 16 hex characters the hub generated."""
+    c = _Collector()
+    req = c.obj("request", raw, ("a", "b"))
+    ids = []
+    for key in ("a", "b"):
+        value = req.get(key)
+        if not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{16}", value):
+            c.fail(key, "must be a run id")
+        ids.append(str(value))
+    if c.errors:
+        raise ValidationError(c.errors)
+    return ids[0], ids[1]
+
+
+def _what_if(c: _Collector, raw: object) -> tuple[str, ...]:
+    if not isinstance(raw, list) or len(raw) > len(WHAT_IFS):
+        c.fail("what_if", f"must be a list of at most {len(WHAT_IFS)} names")
+        return ()
+    if not all(isinstance(x, str) and x in WHAT_IFS for x in raw) or len(set(raw)) != len(raw):
+        c.fail("what_if", f"must be distinct names from: {', '.join(WHAT_IFS)}")
+        return ()
+    return tuple(raw)
 
 
 def _planted(
@@ -345,8 +375,10 @@ def _planted(
 __all__ = [
     "MAX_BODY_BYTES",
     "MAX_UPLOADS",
+    "WHAT_IFS",
     "Upload",
     "ValidationError",
+    "parse_diff_request",
     "parse_json",
     "validate_run_request",
     "validate_upload",

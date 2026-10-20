@@ -28,6 +28,7 @@ from incident_commander.report import case_decision_lines
 from incident_commander.retrieval import HybridRanker
 from incident_commander.types import TraceEvent
 
+from .charts import build_chart, diff_runs
 from .responder import WebResponder
 from .schema import (
     BUILTIN_ALERTS,
@@ -42,6 +43,7 @@ from .world import HubWorld
 MAX_CONCURRENT_RUNS = 2
 MAX_STORED_RUNS = 50
 WEB_DEFAULT_DEADLINE_S = 20.0
+STALE_DEPLOYMENTS_LAG_S = 900.0  # same lag as the ic_plus stale_data scenario
 
 
 class TooManyRuns(Exception):
@@ -216,13 +218,22 @@ class Hub:
                 run.result = self._playground(run, uploads, req, deadline_s)
             else:
                 planted = req.get("planted_logs")
+                what_if = req.get("what_if") or ()
+                alert = HubWorld(uploads).alert(run.alert_id)
                 world = HubWorld(
-                    uploads, planted if isinstance(planted, dict) and planted else None
+                    uploads,
+                    planted if isinstance(planted, dict) and planted else None,
+                    tool_lags={"get_deployments": STALE_DEPLOYMENTS_LAG_S}
+                    if "stale_deployments" in what_if  # type: ignore[operator]
+                    else None,
+                    broken_error_rate=alert.service
+                    if "tool_failure" in what_if  # type: ignore[operator]
+                    else None,
                 )
                 commander = self._commander(world, run, run.mode, deadline_s)
                 case = commander.run(world.alert(run.alert_id), fix_outcome=str(req["fix_outcome"]))
                 run.case, run.commander = case, commander
-                run.result = self._summary(case)
+                run.result = {**self._summary(case), "chart": build_chart(world, case)}
             run.status = "done"
         except Exception as exc:  # noqa: BLE001 - reported to the page, never silently dropped
             run.error = f"{type(exc).__name__}: {exc}"
@@ -282,8 +293,18 @@ class Hub:
                 run.commander.publish(run.case, OutboxNotifier())
             except IllegalTransition as exc:
                 raise Conflict(f"already published or not publishable: {exc}") from None
-            run.result = self._summary(run.case)
+            run.result = {**self._summary(run.case), "chart": (run.result or {}).get("chart")}
         return run.result
+
+    def diff(self, a_id: str, b_id: str) -> dict[str, object]:
+        """Compare two finished runs (not playgrounds)."""
+        results = []
+        for run_id in (a_id, b_id):
+            run = self.get(run_id)
+            if run.kind != "run" or run.status != "done" or run.result is None:
+                raise Conflict(f"run {run_id} is not a finished incident run")
+            results.append(run.result)
+        return diff_runs(results[0], results[1])
 
     def postmortem(self, run_id: str) -> object:
         run = self.get(run_id)

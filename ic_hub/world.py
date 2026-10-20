@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 from collections.abc import Iterable, Mapping
 
 from incident_commander.config import ACTION_PROPERTIES
@@ -17,6 +18,10 @@ from incident_commander.world import SimWorld
 from .schema import Upload
 
 
+def _backend_down(_t: float) -> float:
+    raise RuntimeError("metrics backend down")
+
+
 class HubWorld(SimWorld):
     """Built-in demo and golden data beside uploads. A fresh instance per run."""
 
@@ -24,6 +29,8 @@ class HubWorld(SimWorld):
         self,
         uploads: Iterable[Upload] = (),
         planted_logs: Mapping[str, tuple[str, ...]] | None = None,
+        tool_lags: Mapping[str, float] | None = None,
+        broken_error_rate: str | None = None,
     ) -> None:
         uploads = tuple(uploads)
         super().__init__(
@@ -33,8 +40,13 @@ class HubWorld(SimWorld):
                 **{u.service.name: u.service for u in uploads},
             },
             alerts={**ALERTS, **GOLDEN_ALERTS, **{u.alert.alert_id: u.alert for u in uploads}},
+            tool_lags=tool_lags,
             planted_logs=planted_logs,
         )
+        if broken_error_rate is not None:  # what-if: this service's error-rate backend is down
+            self._services[broken_error_rate] = dataclasses.replace(
+                self._service(broken_error_rate), error_rate=_backend_down
+            )
         self._effects = {
             (u.service.name, action): dict(outcomes)
             for u in uploads

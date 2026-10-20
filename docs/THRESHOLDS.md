@@ -239,3 +239,10 @@ It makes no decision: it builds a world, picks a responder, calls the frozen `Co
 - Page rule: every server string is set with `textContent`; a test fails if `app.js` contains an HTML sink or the page an inline script or handler.
 - Parity: the DECISION lines of ALRT-9001, 9002 and 9003 through the hub (scripted) are checked against `traces/run.txt`; the planted-log runs match too.
 - Not in v2.2 (still planned for v2.3): charts, what-if toggles, evaluate view, explain box, run history, audit log, Alertmanager intake.
+
+## Choices that go beyond PHASE5 (v2.3, views: charts, what-if, run diff)
+
+- Chart data: `ic_hub/charts.py::build_chart` re-reads the alert's own metric from the run's own world (so a fix shows as recovery), the baseline, the verify limit (baseline x `VERIFY_TOLERANCE`) and the deployments in the 30 minute window. Marker times come from trace events (`EXECUTE` with status executed, `VERIFY`). It is added to a finished run's result as `chart` (null if the series cannot be read) and kept across publish. Nothing reads it back into a decision.
+- Verify marker: `VERIFY` data time is at least `VERIFY_WINDOW_S` after the fix (the data clock also ticks per tool call), so the tests assert a lower bound.
+- What-if toggles: `what_if` is an optional list of at most two distinct names from `stale_deployments` (the `get_deployments` lag of the ic_plus `stale_data` scenario, 900 s) and `tool_failure` (the alert service's error-rate backend raises, as in the `tool_failure` scenario). Anything else is a 422. "Fix fails" and "silent approver" already exist as `fix_outcome` and `mode`. Applied through `HubWorld(tool_lags=, broken_error_rate=)`; no core change.
+- Run diff: `POST /api/diff` with `{"a", "b"}` (generated 16-hex run ids only) compares state, handoff reason, DECISION lines and trace kinds of two finished incident runs; playground and unfinished runs are a 409, unknown ids 404. Computed on the server so it is tested over HTTP.

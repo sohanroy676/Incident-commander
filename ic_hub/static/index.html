@@ -30,6 +30,10 @@
         <select id="fix"><option value="success">success</option><option value="fix_fails">fix_fails</option></select>
       </label>
       <label>Deadline per page (s, optional)<input id="deadline" type="number" min="0.1" max="60" step="0.1"></label>
+      <fieldset class="whatif"><legend>What if</legend>
+        <label class="inline"><input type="checkbox" id="wi-stale"> deployments data is stale</label>
+        <label class="inline"><input type="checkbox" id="wi-tool"> error-rate backend is down</label>
+      </fieldset>
     </div>
     <p id="run-error" class="error" role="alert"></p>
   </section>
@@ -46,6 +50,20 @@
     <button id="skip" type="button" hidden>Skip replay</button>
     <h3>DECISION lines</h3>
     <pre id="decisions"></pre>
+  </section>
+
+  <section aria-labelledby="h-chart">
+    <h2 id="h-chart">Evidence chart</h2>
+    <p class="note">The alert's own metric from 30 minutes before it fired to the end of the verify window.</p>
+    <svg id="chart" viewBox="0 0 640 240" role="img" aria-labelledby="chart-desc" hidden></svg>
+    <p id="chart-desc">Run an incident to see its chart.</p>
+  </section>
+
+  <section aria-labelledby="h-diff">
+    <h2 id="h-diff">Compare runs</h2>
+    <p class="note">Compares the last two finished incident runs from this page.</p>
+    <button id="diff-btn" type="button" disabled>Compare last two runs</button>
+    <pre id="diff"></pre>
   </section>
 
   <section aria-labelledby="h-pm">
