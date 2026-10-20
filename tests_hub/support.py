@@ -37,9 +37,10 @@ class HubTestCase(unittest.TestCase):
     """A fresh server per test, so uploads and runs never leak between tests."""
 
     server: HubServer
+    client_factory = None  # tests that need an LLM set a factory: mode -> (client, missing)
 
     def setUp(self) -> None:
-        self.server = make_server(0)
+        self.server = make_server(0, self.client_factory)
         thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         thread.start()
         self.addCleanup(self._stop, thread)

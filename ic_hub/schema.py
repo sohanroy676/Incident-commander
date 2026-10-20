@@ -35,6 +35,8 @@ MAX_PLANTED_CHARS = 300
 MAX_SUMMARY_CHARS = 200
 MAX_DEADLINE_S = 60.0
 WHAT_IFS = ("stale_deployments", "tool_failure")
+LLM_MODES = ("off", "local", "hosted")
+MAX_QUESTION_CHARS = 200
 TIME_MIN = T0 - 400 * DAY_S
 TIME_MAX = T0 + 400 * DAY_S
 LEVEL_MAX = 1_000_000.0
@@ -342,6 +344,51 @@ def parse_diff_request(raw: object) -> tuple[str, str]:
     return ids[0], ids[1]
 
 
+def validate_explain_request(raw: object, known_alerts: frozenset[str]) -> dict[str, object]:
+    """{"alert_id", "question", "llm", "acknowledge_remote"}. No URL, model or key is accepted."""
+    c = _Collector()
+    req = c.obj("request", raw, ("alert_id", "question", "llm", "acknowledge_remote"))
+    alert_id = req.get("alert_id")
+    if not isinstance(alert_id, str) or alert_id not in known_alerts:
+        c.fail("alert_id", "must name an existing alert")
+    question = c.free_text("question", req.get("question"), MAX_QUESTION_CHARS)
+    llm = _llm_mode(c, req.get("llm", "off"))
+    ack = req.get("acknowledge_remote", False)
+    if not isinstance(ack, bool):
+        c.fail("acknowledge_remote", "must be true or false")
+    elif llm == "hosted" and not ack:
+        c.fail(
+            "acknowledge_remote",
+            "hosted mode sends the question and incident facts to a remote service; "
+            "set true to confirm",
+        )
+    if c.errors:
+        raise ValidationError(c.errors)
+    return {"alert_id": alert_id, "question": question, "llm": llm, "acknowledge_remote": ack}
+
+
+def validate_evaluate_request(raw: object) -> dict[str, object]:
+    """{"llm", "acknowledge_remote"}: the same remote-confirmation rule as the explain box."""
+    c = _Collector()
+    req = c.obj("request", raw, ("llm", "acknowledge_remote"))
+    llm = _llm_mode(c, req.get("llm", "off"))
+    ack = req.get("acknowledge_remote", False)
+    if not isinstance(ack, bool):
+        c.fail("acknowledge_remote", "must be true or false")
+    elif llm == "hosted" and not ack:
+        c.fail("acknowledge_remote", "hosted mode sends incident facts to a remote service")
+    if c.errors:
+        raise ValidationError(c.errors)
+    return {"llm": llm, "acknowledge_remote": ack}
+
+
+def _llm_mode(c: _Collector, raw: object) -> str:
+    if not isinstance(raw, str) or raw not in LLM_MODES:
+        c.fail("llm", f"must be one of {', '.join(LLM_MODES)}")
+        return "off"
+    return raw
+
+
 def _what_if(c: _Collector, raw: object) -> tuple[str, ...]:
     if not isinstance(raw, list) or len(raw) > len(WHAT_IFS):
         c.fail("what_if", f"must be a list of at most {len(WHAT_IFS)} names")
@@ -380,6 +427,8 @@ __all__ = [
     "ValidationError",
     "parse_diff_request",
     "parse_json",
+    "validate_evaluate_request",
+    "validate_explain_request",
     "validate_run_request",
     "validate_upload",
 ]

@@ -18,12 +18,14 @@ from urllib.parse import urlsplit
 
 from incident_commander.postmortem import render
 
-from .runner import Conflict, Hub, NotFound, TooManyRuns
+from .runner import ClientFactory, Conflict, Hub, NotFound, TooManyRuns
 from .schema import (
     MAX_BODY_BYTES,
     ValidationError,
     parse_diff_request,
     parse_json,
+    validate_evaluate_request,
+    validate_explain_request,
     validate_run_request,
 )
 
@@ -47,9 +49,9 @@ _RUN_PATH = re.compile(r"^/api/runs/([0-9a-f]{16})(?:/([a-z.]+))?$")
 class HubServer(ThreadingHTTPServer):
     daemon_threads = True
 
-    def __init__(self, port: int = 0) -> None:
+    def __init__(self, port: int = 0, client_factory: ClientFactory | None = None) -> None:
         super().__init__((HOST, port), _Handler)
-        self.hub = Hub()
+        self.hub = Hub(client_factory) if client_factory else Hub()
         self.token = secrets.token_urlsafe(24)
         self.allowed_hosts = frozenset({f"127.0.0.1:{self.port}", f"localhost:{self.port}"})
         self.allowed_origins = frozenset(f"http://{h}" for h in self.allowed_hosts)
@@ -192,6 +194,17 @@ class _Handler(BaseHTTPRequestHandler):
             if playground and not req["text"]:
                 raise ValidationError({"text": "is required"})
             self._json(202, {"run_id": hub.start(req, playground=playground).run_id})
+        elif method == "POST" and path == "/api/explain":
+            body = self._body()
+            if body is None:
+                return
+            req = validate_explain_request(body, hub.known_alerts())
+            self._json(202, {"run_id": hub.start_explain(req).run_id})
+        elif method == "POST" and path == "/api/evaluate":
+            body = self._body()
+            if body is None:
+                return
+            self._json(202, {"run_id": hub.start_evaluate(validate_evaluate_request(body)).run_id})
         elif method == "POST" and path == "/api/diff":
             body = self._body()
             if body is None:
@@ -229,5 +242,5 @@ class _Handler(BaseHTTPRequestHandler):
             self._error(404, "not found")
 
 
-def make_server(port: int = 0) -> HubServer:
-    return HubServer(port)
+def make_server(port: int = 0, client_factory: ClientFactory | None = None) -> HubServer:
+    return HubServer(port, client_factory)
