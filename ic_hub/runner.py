@@ -1,0 +1,291 @@
+"""Runs the graded Commander on a background thread and keeps the finished trace for replay.
+
+The hub never edits a decision: it builds a world, picks a responder, calls `Commander.run`, and
+reports what the case holds. DECISION lines come from `report.case_decision_lines`, the same
+function the CLI and the scenarios use.
+"""
+
+from __future__ import annotations
+
+import dataclasses
+import math
+import secrets
+import threading
+from collections import OrderedDict
+from collections.abc import Mapping
+
+from incident_commander.approval import ScriptedResponder
+from incident_commander.commander import Case, Commander, IllegalTransition
+from incident_commander.config import (
+    APPROVAL_DEADLINE_S,
+    DEMO_SECONDARY_DELAY_S,
+    SECONDARY_ONCALL,
+)
+from incident_commander.fixtures.alerts import ALERTS
+from incident_commander.fixtures.runbooks import RUNBOOKS
+from incident_commander.postmortem import OutboxNotifier, render
+from incident_commander.report import case_decision_lines
+from incident_commander.retrieval import HybridRanker
+from incident_commander.types import TraceEvent
+
+from .responder import WebResponder
+from .schema import (
+    BUILTIN_ALERTS,
+    BUILTIN_SERVICES,
+    MAX_UPLOADS,
+    Upload,
+    ValidationError,
+    validate_upload,
+)
+from .world import HubWorld
+
+MAX_CONCURRENT_RUNS = 2
+MAX_STORED_RUNS = 50
+WEB_DEFAULT_DEADLINE_S = 20.0
+
+
+class TooManyRuns(Exception):
+    """The concurrent-run cap is reached."""
+
+
+class NotFound(Exception):
+    """No such run or alert."""
+
+
+class Conflict(Exception):
+    """The run is not in a state that allows this."""
+
+
+def jsonable(value: object) -> object:
+    """Trace fields to JSON values; anything unusual becomes its text."""
+    if value is None or isinstance(value, (bool, int, str)):
+        return value
+    if isinstance(value, float):
+        return value if math.isfinite(value) else str(value)
+    if isinstance(value, (list, tuple)):
+        return [jsonable(v) for v in value]
+    return str(value)
+
+
+def event_json(event: TraceEvent) -> dict[str, object]:
+    return {
+        "seq": event.seq,
+        "kind": event.kind,
+        "data_time": event.data_time,
+        "elapsed_s": round(event.elapsed_s, 3),
+        "fields": {k: jsonable(v) for k, v in event.fields},
+    }
+
+
+class Run:
+    def __init__(self, run_id: str, kind: str, alert_id: str, mode: str) -> None:
+        self.run_id = run_id
+        self.kind = kind  # "run" | "playground"
+        self.alert_id = alert_id
+        self.mode = mode
+        self.status = "running"  # running | done | error
+        self.error: str | None = None
+        self.responder: WebResponder | None = None
+        self.result: dict[str, object] | None = None
+        self.case: Case | None = None
+        self.commander: Commander | None = None
+
+    def view(self) -> dict[str, object]:
+        pending = self.responder.pending() if self.responder and self.status == "running" else None
+        return {
+            "run_id": self.run_id,
+            "kind": self.kind,
+            "alert_id": self.alert_id,
+            "mode": self.mode,
+            "status": self.status,
+            "pending": pending,
+            "error": self.error,
+            "result": self.result,
+        }
+
+
+class Hub:
+    """Uploads, runs and their limits. One instance per server."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._uploads: list[Upload] = []
+        self._runs: OrderedDict[str, Run] = OrderedDict()
+        self._active = 0
+
+    # -- uploads and alerts -------------------------------------------------
+
+    def add_upload(self, raw: object) -> Upload:
+        with self._lock:
+            if len(self._uploads) >= MAX_UPLOADS:
+                raise ValidationError({"upload": f"at most {MAX_UPLOADS} uploads"})
+            services = BUILTIN_SERVICES | {u.service.name for u in self._uploads}
+            alerts = BUILTIN_ALERTS | {u.alert.alert_id for u in self._uploads}
+            upload = validate_upload(raw, services, alerts)
+            self._uploads.append(upload)
+            return upload
+
+    def uploads(self) -> tuple[Upload, ...]:
+        with self._lock:
+            return tuple(self._uploads)
+
+    def alert_rows(self) -> list[dict[str, object]]:
+        world = HubWorld(self.uploads())
+        uploaded = {u.alert.alert_id for u in self.uploads()}
+        rows = []
+        for alert_id in world.alert_ids():
+            a = world.alert(alert_id)
+            if alert_id in uploaded:
+                source = "upload"
+            elif alert_id in ALERTS:
+                source = "demo"
+            else:
+                source = "golden"
+            rows.append(
+                {
+                    "alert_id": a.alert_id,
+                    "service": a.service,
+                    "severity": a.severity,
+                    "metric": a.metric,
+                    "summary": a.summary,
+                    "fired_at": a.fired_at,
+                    "source": source,
+                }
+            )
+        return rows
+
+    def known_alerts(self) -> frozenset[str]:
+        return frozenset(HubWorld(self.uploads()).alert_ids())
+
+    def has_service(self, name: str) -> bool:
+        return HubWorld(self.uploads()).has_service(name)
+
+    # -- runs ---------------------------------------------------------------
+
+    def start(self, req: Mapping[str, object], *, playground: bool = False) -> Run:
+        mode = "scripted" if playground else str(req["mode"])
+        run = Run(
+            secrets.token_hex(8), "playground" if playground else "run", str(req["alert_id"]), mode
+        )
+        uploads = self.uploads()
+        with self._lock:
+            if self._active >= MAX_CONCURRENT_RUNS:
+                raise TooManyRuns("too many runs in progress")
+            self._active += 1
+            self._runs[run.run_id] = run
+            while len(self._runs) > MAX_STORED_RUNS:
+                oldest = next((k for k, r in self._runs.items() if r.status != "running"), None)
+                if oldest is None:
+                    break
+                del self._runs[oldest]
+        deadline = req.get("deadline_s")
+        if deadline is None:
+            deadline = WEB_DEFAULT_DEADLINE_S if mode == "web" else APPROVAL_DEADLINE_S
+        if mode == "web" and not playground:
+            run.responder = WebResponder(float(deadline))
+        thread = threading.Thread(
+            target=self._execute, args=(run, uploads, req, float(deadline)), daemon=True
+        )
+        thread.start()
+        return run
+
+    def get(self, run_id: str) -> Run:
+        with self._lock:
+            run = self._runs.get(run_id)
+        if run is None:
+            raise NotFound("no such run")
+        return run
+
+    def _commander(self, world: HubWorld, run: Run, mode: str, deadline_s: float) -> Commander:
+        if mode == "web":
+            responder: object = run.responder
+        elif mode == "silent":
+            responder = ScriptedResponder({})
+        else:  # the graded wiring: priya never answers, devon approves after paging
+            responder = ScriptedResponder({SECONDARY_ONCALL: (DEMO_SECONDARY_DELAY_S, "approve")})
+        ranker = HybridRanker(tuple(RUNBOOKS.values()))
+        return Commander(world, ranker, responder, deadline_s=deadline_s)  # type: ignore[arg-type]
+
+    def _execute(
+        self, run: Run, uploads: tuple[Upload, ...], req: Mapping[str, object], deadline_s: float
+    ) -> None:
+        try:
+            if run.kind == "playground":
+                run.result = self._playground(run, uploads, req, deadline_s)
+            else:
+                world = HubWorld(uploads, req.get("planted_logs") or None)
+                commander = self._commander(world, run, run.mode, deadline_s)
+                case = commander.run(world.alert(run.alert_id), fix_outcome=str(req["fix_outcome"]))
+                run.case, run.commander = case, commander
+                run.result = self._summary(case)
+            run.status = "done"
+        except Exception as exc:  # noqa: BLE001 - reported to the page, never silently dropped
+            run.error = f"{type(exc).__name__}: {exc}"
+            run.status = "error"
+        finally:
+            if run.responder is not None:
+                run.responder.close()
+            with self._lock:
+                self._active -= 1
+
+    def _playground(
+        self, run: Run, uploads: tuple[Upload, ...], req: Mapping[str, object], deadline_s: float
+    ) -> dict[str, object]:
+        """Same alert twice, the second with a planted log line: the DECISION lines must match."""
+        alert_id = str(req["alert_id"])
+        text = str(req["text"] or "")
+        service = HubWorld(uploads).alert(alert_id).service
+        lines = {}
+        for label, planted in (("clean", None), ("planted", {service: (text,)})):
+            world = HubWorld(uploads, planted)
+            commander = self._commander(world, run, "scripted", deadline_s)
+            case = commander.run(world.alert(alert_id), fix_outcome=str(req["fix_outcome"]))
+            lines[label] = list(case_decision_lines(case))
+        return {
+            "planted_service": service,
+            "planted_text": text,
+            "clean_lines": lines["clean"],
+            "planted_lines": lines["planted"],
+            "unchanged": lines["clean"] == lines["planted"],
+        }
+
+    @staticmethod
+    def _summary(case: Case) -> dict[str, object]:
+        draft = case.draft
+        return {
+            "state": case.state,
+            "handoff_reason": case.handoff_reason,
+            "decision_lines": list(case_decision_lines(case)),
+            "trace": [event_json(e) for e in case.trace.events],
+            "postmortem": render(draft) if draft else None,
+            "published": bool(draft and draft.published),
+        }
+
+    def approve(self, run_id: str, nonce: object, decision: object) -> str:
+        run = self.get(run_id)
+        if run.responder is None or run.status != "running":
+            raise Conflict("this run is not waiting for a web approval")
+        return run.responder.submit(nonce, decision)
+
+    def publish(self, run_id: str) -> dict[str, object]:
+        """The explicit, human-triggered side effect. The notifier is the in-memory outbox."""
+        run = self.get(run_id)
+        if run.case is None or run.commander is None or run.status != "done":
+            raise Conflict("this run has no finished draft to publish")
+        with self._lock:
+            try:
+                run.commander.publish(run.case, OutboxNotifier())
+            except IllegalTransition as exc:
+                raise Conflict(f"already published or not publishable: {exc}") from None
+            run.result = self._summary(run.case)
+        return run.result
+
+    def postmortem(self, run_id: str) -> object:
+        run = self.get(run_id)
+        if run.case is None or run.case.draft is None:
+            raise Conflict("this run has no postmortem draft")
+        return run.case.draft
+
+    @staticmethod
+    def postmortem_json(draft: object) -> dict[str, object]:
+        return dataclasses.asdict(draft)  # type: ignore[call-overload]

@@ -13,16 +13,20 @@ dynamic = ["dependencies"]
 [project.scripts]
 incident-commander = "incident_commander.__main__:main"
 ic-plus = "ic_plus.__main__:main"
+ic-hub = "ic_hub.__main__:main"
 
 [tool.setuptools]
-packages = ["incident_commander", "incident_commander.fixtures", "ic_plus"]
+packages = ["incident_commander", "incident_commander.fixtures", "ic_plus", "ic_hub"]
+
+[tool.setuptools.package-data]
+ic_hub = ["static/*"]
 
 # requirements.txt stays the single source of the scikit-learn pin.
 [tool.setuptools.dynamic]
 dependencies = { file = ["requirements.txt"] }
 
 [tool.coverage.run]
-source = ["incident_commander", "ic_plus"]
+source = ["incident_commander", "ic_plus", "ic_hub"]
 branch = true
 
 [tool.coverage.report]
@@ -35,7 +39,7 @@ python_version = "3.12"
 ignore_missing_imports = true
 follow_imports = "silent"
 check_untyped_defs = false
-exclude = ["^incident_commander/", "^tests/", "^tests_plus/"]
+exclude = ["^incident_commander/", "^tests/", "^tests_plus/", "^tests_hub/"]
 
 [tool.bandit]
-exclude_dirs = ["tests", "tests_plus", ".venv"]
+exclude_dirs = ["tests", "tests_plus", "tests_hub", ".venv"]
