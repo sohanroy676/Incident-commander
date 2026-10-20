@@ -178,13 +178,15 @@ class Hub:
                 if oldest is None:
                     break
                 del self._runs[oldest]
-        deadline = req.get("deadline_s")
-        if deadline is None:
+        requested = req.get("deadline_s")
+        if isinstance(requested, (int, float)):
+            deadline = float(requested)
+        else:
             deadline = WEB_DEFAULT_DEADLINE_S if mode == "web" else APPROVAL_DEADLINE_S
         if mode == "web" and not playground:
-            run.responder = WebResponder(float(deadline))
+            run.responder = WebResponder(deadline)
         thread = threading.Thread(
-            target=self._execute, args=(run, uploads, req, float(deadline)), daemon=True
+            target=self._execute, args=(run, uploads, req, deadline), daemon=True
         )
         thread.start()
         return run
@@ -213,7 +215,10 @@ class Hub:
             if run.kind == "playground":
                 run.result = self._playground(run, uploads, req, deadline_s)
             else:
-                world = HubWorld(uploads, req.get("planted_logs") or None)
+                planted = req.get("planted_logs")
+                world = HubWorld(
+                    uploads, planted if isinstance(planted, dict) and planted else None
+                )
                 commander = self._commander(world, run, run.mode, deadline_s)
                 case = commander.run(world.alert(run.alert_id), fix_outcome=str(req["fix_outcome"]))
                 run.case, run.commander = case, commander

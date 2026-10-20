@@ -96,9 +96,10 @@ def explain(case: Case, question: str, client: LLMClient | None) -> ExplainerOut
         return ExplainerOutcome("rejected", lines, template_answer(facts))
     model = _printable(reply.model, 60)
     case.trace.emit("llm_ok", role="explainer", model=model, guard="pass")
+    assert result.data is not None  # ok means the guard returned data
     answer = _printable(result.data["answer"], MAX_ANSWER_CHARS)
-    lines = (
+    ok_lines = (
         f"llm: ok role=explainer model={model} guard=pass",
         f"{AI_LABEL} {answer} (guard=pass)",
     )
-    return ExplainerOutcome("ok", lines, answer)
+    return ExplainerOutcome("ok", ok_lines, answer)

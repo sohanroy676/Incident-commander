@@ -104,8 +104,11 @@ class _Collector:
     def num(
         self, path: str, value: object, lo: float, hi: float, *, lo_open: bool = False
     ) -> float:
-        ok = isinstance(value, (int, float)) and not isinstance(value, bool)
-        if not ok or not math.isfinite(value):
+        if (
+            isinstance(value, bool)
+            or not isinstance(value, (int, float))
+            or not math.isfinite(value)
+        ):
             self.fail(path, "must be a finite number")
             return lo
         below = value <= lo if lo_open else value < lo
@@ -234,7 +237,9 @@ def validate_upload(
     spec = ServiceSpec(
         name, base_lat, base_err, latency, error_rate, deployments, anchor, anchor, dependencies
     )
-    return Upload(spec, Alert(alert_id, name, fired_at, severity, metric, summary), effects)
+    return Upload(
+        spec, Alert(alert_id, name, fired_at, str(severity), str(metric), summary), effects
+    )
 
 
 def _deployments(c: _Collector, raw: object) -> tuple[tuple[float, str], ...]:

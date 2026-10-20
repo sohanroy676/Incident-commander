@@ -41,7 +41,9 @@ class ScenarioResult:
 
 def _commander(world: SimWorld, silent: bool = False) -> Commander:
     """The graded wiring (priya never answers, devon approves), or both silent."""
-    script = {} if silent else {SECONDARY_ONCALL: (DEMO_SECONDARY_DELAY_S, "approve")}
+    script: dict[str, tuple[float | None, str]] = (
+        {} if silent else {SECONDARY_ONCALL: (DEMO_SECONDARY_DELAY_S, "approve")}
+    )
     ranker = HybridRanker(tuple(RUNBOOKS.values()))
     return Commander(world, ranker, ScriptedResponder(script))
 
@@ -53,6 +55,7 @@ def _run(world: SimWorld, alert_id: str, silent: bool = False, **kwargs: str) ->
 def stale_data() -> ScenarioResult:
     case = _run(SimWorld(tool_lags={"get_deployments": 900.0}), ALERT_ID)
     result = case.investigation
+    assert result is not None
     deploys = [o for o in result.observations if o.tool == "get_deployments"]
     refetches = sum(1 for r in result.rounds if r.tool == "get_deployments" and r.mode == "refetch")
     still_stale = bool(deploys) and not deploys[-1].fresh
@@ -74,6 +77,7 @@ def tool_failure() -> ScenarioResult:
     broken = dataclasses.replace(SERVICES[INJECTION_SERVICE], error_rate=boom)
     case = _run(SimWorld(services={**SERVICES, INJECTION_SERVICE: broken}), ALERT_ID)
     result = case.investigation
+    assert result is not None
     errored = [o.tool for o in result.observations if o.status == "error"]
     trace = "trace: tool_failure " + kv(tool="get_error_rate", errored=",".join(errored))
     verdict = result.verdict
