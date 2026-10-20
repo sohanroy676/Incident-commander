@@ -42,12 +42,12 @@ jobs:
       # Informational: 13 known errors in ic_plus (v2.1 baseline) are not fixed in a docs/CI release.
       - name: Type check (extension only, informational)
         continue-on-error: true
-        run: mypy ic_plus
+        run: mypy ic_plus ic_hub
 
       # Fails on high severity only. Known baseline (not fixed here): B310 llm_client.py (urlopen on the
       # configured LLM URL), B404/B603 dod.py (subprocess with a fixed argument list).
       - name: Security scan (bandit, high severity)
-        run: bandit -q -lll -r incident_commander ic_plus -c pyproject.toml
+        run: bandit -q -lll -r incident_commander ic_plus ic_hub -c pyproject.toml
 
       - name: Dependency audit (pip-audit)
         run: pip-audit -r requirements.txt
@@ -68,6 +68,7 @@ jobs:
           - {name: core-rest, dir: tests, pick: "^(test_cli|test_dod|test_canaries)$", invert: "true"}
           - {name: plus-hard, dir: tests_plus, pick: "^(test_x3|test_release|test_cli|test_approver_cli)$", invert: "false"}
           - {name: plus-llm, dir: tests_plus, pick: "^(test_llm_cli|test_llm_client|test_llm_guard|test_envfile)$", invert: "false"}
+          - {name: hub, dir: tests_hub, pick: "^test_", invert: "false"}
           - {name: plus-rest, dir: tests_plus, pick: "^(test_x3|test_release|test_cli|test_approver_cli|test_llm_cli|test_llm_client|test_llm_guard|test_envfile)$", invert: "true"}
     steps:
       - name: Checkout code
