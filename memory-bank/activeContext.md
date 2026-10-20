@@ -37,6 +37,9 @@ v2.0 extended release is merged to main, pushed, CI green and tagged `v2.0`. `in
 
 - v0.6 choices are in docs/THRESHOLDS.md ("Choices that go beyond PHASE5 (v0.6)"): golden services in `fixtures/golden.py`, `SimWorld(planted_logs=)` instead of a `Commander.run` parameter, `golden_world()` for evaluation. `.venv` on Python 3.12.10 / scikit-learn 1.9.1 works again.
 
+## Extension plan review (2026-10-20)
+docs/EXTENSION_PLAN.md was verified against the code and corrected (versions now v2.1, v2.2 hub core, v2.3 hub extras, v3.0). Pending owner approval (section 0 there): v3.0 unfreeze, "Portfolio scope (v2.1+)", X1 re-baseline, Pages demo, new predicates, license holder. Item 6 reframed: no fake clock or patched sleep (rule), use shorter real deadlines and parallel CI jobs. Baseline: `dod all` PASS 53 s, tests 301 OK 178 s, tests_plus 153 OK 353 s. Docs only; no code changed, nothing committed (EXTENSION_PLAN.md is still untracked; `.claude/settings.json` change left alone). There is no `.clinerules/` in this repo.
+
 ## Next step
 No version is planned. Optional: a hosted free-tier live trace (key in `.env`, limits unchecked); install git-cliff to generate CHANGELOG.md. `git diff v1.0 -- incident_commander/` must stay empty. v2.0 gotchas: the cli approver needs `--deadline 20` for a human; live Ollama (llama3.2) `evaluate` takes about 90 s; local branches v1.3-roles, docs/v1.3-status and v2.0-release await your confirmation to delete.
 v1.3 choices are in docs/THRESHOLDS.md ("Choices that go beyond PHASE5 (v1.3)"): `ic_plus run` does not apply advisor advice (only `evaluate` does, via `x3.advised_orders`, a temporary wrapper around the frozen `investigate`); explainer is free text (no JSON mode) capped at 600 characters; `guard_advice` pads partial lists to a permutation; free-tier limits of hosted providers were not checked.

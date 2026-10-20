@@ -20,13 +20,20 @@ gates still pass, its trace is saved to traces/vX.Y.txt, and the git tag exists.
 - v2.0 Extended release (merged to main, CI green, tagged `v2.0`): `docs/DEMO.md` (graded and extended demo scripts, dry-run), README extension section, `tests_plus/test_release.py` (X1-X4), `traces/v2.0.txt`, live local-model traces `traces/v1.2-live.txt` and `traces/v1.3-live-evaluate.txt` (Ollama llama3.2).
 
 ## Next
-- Nothing scheduled. Submission and viva rehearsal with docs/DEMO.md.
+- Submission and viva rehearsal with docs/DEMO.md come first.
+- Proposed portfolio versions (reviewed 2026-10-20, full detail in docs/EXTENSION_PLAN.md and docs/DETAILED_ROADMAP.md §5b). Each keeps `dod all` green and the `traces/run.txt` DECISION lines identical; none is started.
+  - v2.1 Polish and docs (no behaviour change): LICENSE, pyproject, CI extras, ADRs (proposed), architecture doc and diagram. Pending: license choice.
+  - v2.2 Hub core (`ic_hub/`, stdlib only, no core change): local web app with uploads, replay run view, web approval, injection playground, postmortem export, hub tests. Pending owner approval of the portfolio scope.
+  - Showcase: README rewrite with GIF, demo video, optional Pages viewer (pending owner approval).
+  - v2.3 Hub extras: charts, what-if, history, audit log, intake adapter (the last three pending scope approval).
+  - v3.0 Pluggable core: pending owner approval of the unfreeze; only after submission and viva.
 
 ## Later / ideas
 - Optional GitHub Actions workflow running `dod all` (first to cut if time runs short).
 - Hosted free-tier run saved as a trace (manual; free-tier limits still unchecked).
 
 ## Explicitly not planned
+(This is the graded scope. A "Portfolio scope (v2.1+)" amendment that would relax web UI, persistent storage and exports is pending owner approval; see docs/EXTENSION_PLAN.md §0.)
 - Incident queue, JSON/Markdown exports, random fault injection.
 - Web UI, persistent storage, learned or persisted agent memory.
 - Multi-agent coordination.

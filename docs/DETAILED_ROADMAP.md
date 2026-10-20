@@ -24,6 +24,12 @@
 | **v1.2** | LLM client, guard, narrator | Provider-agnostic client, deterministic guard, AI-drafted narrative | FR-14 (part) | X2 (unavailable), X4; AC-22, AC-24 | Yes | L |
 | **v1.3** | Explainer, advisor, hosted | Explainer, advisor, local + hosted providers, X3 | FR-14 (rest) | X3; AC-23 | Yes | M |
 | **v2.0** | **Extended release** | Demo script, rehearsal, all of G1–G6 and X1–X4 green, tag | all | all | **Yes: both builds** | S |
+| *v2.1* | *Polish and docs (proposed)* | LICENSE, pyproject, CI extras, ADRs, architecture doc | none (portfolio) | G1–G6, X1–X4 unchanged | Docs only | M |
+| *v2.2* | *Hub core (proposed)* | `ic_hub/`: uploads, replay run view, web approval, injection playground, export, hub tests | none (portfolio) | G1–G6, X1–X4, H1–H5 | Yes | L |
+| *v2.3* | *Hub extras (proposed)* | Charts, what-if, run diff, history, audit log, intake adapter | none (portfolio) | as v2.2 | Yes | L |
+| *v3.0* | *Pluggable core (proposed, pending owner approval)* | `runbooks=` pass-through, `on_event` hook, re-baselined X1 | none (portfolio) | G1–G6, X1 re-baselined | Yes | M |
+
+*Italic rows are a proposal from the 2026-10-20 review of `docs/EXTENSION_PLAN.md`; none is started. The scope amendment (P2) and the v3.0 unfreeze (P1) are pending owner approval.*
 
 ---
 
@@ -480,6 +486,40 @@ $ python -m ic_plus run --all --llm local|hosted → same DECISION lines + label
 ```
 
 **Done when:** the two demo scripts run clean; tag `v2.0`.
+
+---
+
+## 5b. Portfolio versions (proposed, not started)
+
+Source and item numbers: `docs/EXTENSION_PLAN.md`. All of this is pending owner approval (§0 there). Order: v2.1, v2.2, showcase, v2.3, v3.0. Every version: `incident_commander/` untouched (except v3.0), `dod all` green, `traces/run.txt` DECISION lines identical, `git diff v1.0 -- incident_commander/` empty, ruff clean, no non-stdlib dependency in `incident_commander/` or `ic_hub/`.
+
+### 5b.1 v2.1 Polish and docs
+**Depends on:** v2.0. **Items:** 1–5, 6–13, 3a. **Pending:** license choice and holder (P6).
+**What to test:** `dod all` and both suites still pass; CI runs green with the new jobs; `pip install .` exposes the three console scripts and `python -m incident_commander run --all` is unchanged; `mypy` config excludes `incident_commander/`.
+**Item 6 (faster tests):** no patched sleep and no fake clock (rule in `AGENTS.md`). Shorter real deadlines only where the test does not assert the deadline, parallel CI jobs for `tests/` and `tests_plus/`, gate tests unchanged. Done when CI wall time drops and no assertion is weaker.
+**Done when:** docs and CI items merged; tag `v2.1`.
+
+### 5b.2 v2.2 Hub core (`ic_hub/`)
+**Depends on:** v2.1 and scope approval (P2). **Items:** 14–19, 21, 23, 29, 45.
+**Build:** stdlib `http.server`, JSON API, vanilla JS; `HubWorld(SimWorld)` for uploaded services and effects; `WebResponder`; upload schema with size and window bounds.
+**What to test (H1–H5):**
+- H1 DECISION lines of ALRT-9001/9002/9003 through the hub equal `traces/run.txt`.
+- H2 Adversarial uploads rejected with field errors: window or `fired_at` that would build millions of points, NaN or infinity, duplicate keys, built-in name clash, off-grid `fired_at`, body over 1 MB.
+- H3 A planted log line renders as text (no markup executed) and leaves DECISION lines unchanged.
+- H4 Wrong Host, wrong Origin, missing token and a replayed or stale approval nonce are all refused; `deadline_s` and concurrent runs are capped.
+- H5 `dod purity` PASS and `ic_hub` is not imported by `incident_commander/` or `ic_plus/`.
+**Done when:** H1–H5 pass with G1–G6 and X1–X4; tag `v2.2`.
+
+### 5b.3 Showcase
+**Depends on:** v2.2. README rewrite with a real hub GIF, demo video, release workflow. The Pages trace viewer needs owner approval (P4); recordings come from real runs via a script.
+
+### 5b.4 v2.3 Hub extras
+**Depends on:** v2.2. **Items:** 20, 22, 24–28, 30–34. Items 27, 28 and 30 need scope approval (P2). Evaluate view calls the existing evaluate functions.
+**What to test:** charts show data from observations only; what-if runs match `ic_plus` scenarios; audit chain verifies and detects a changed line; `data/` is gitignored; intake labels render as text.
+
+### 5b.5 v3.0 Pluggable core (pending owner approval, P1 and P3)
+**Depends on:** course submission and viva done, and approval. **Items:** 35–40.
+**What to test:** default run equals v1.0 byte for byte after normalisation; G1–G6 pass; X1 re-baselined to a `v2.x` tag with the v1.0 diff documented in an ADR; custom runbook runs only compose the nine predicates and four actions. Items 39 (robustness check) and 40 (new predicates, P5) are optional and decided separately.
 
 ---
 

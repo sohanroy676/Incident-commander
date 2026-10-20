@@ -38,6 +38,13 @@ incident-commander/
 │   └─ advisor.py  approver_cli.py  scenarios.py
 └─ tests_plus/                 extension tests, fake HTTP server, recorded replies
 
+## Proposed: `ic_hub/` (v2.2, not built, pending owner approval)
+Local web app (stdlib `http.server`, vanilla JS, 127.0.0.1) on top of the same pipeline. It imports
+`incident_commander` and `ic_plus`; neither imports it. Uploaded services and remediation effects run through a
+`SimWorld` subclass, so no core change is needed. The run view is a replay of the finished trace; web approval uses
+a `WebResponder`. Security checks (Host, Origin, token, per-page nonce, size and window bounds, text-only
+rendering, CSP) are listed in docs/EXTENSION_PLAN.md. Note: `docs/diagrams/` named below does not exist yet.
+
 ## Data flow (one alert)
 1. Receive: Commander gets an alert (id, service, fired_at, severity, metric, summary) → new Case, trace event.
 2. Propose: Retriever ranks runbooks (BM25 + char TF-IDF, fused with RRF); prints scores and top-2 margin.
