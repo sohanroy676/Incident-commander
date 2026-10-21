@@ -57,3 +57,6 @@ v2.3 is released: all four branches merged to main, pushed, CI green, tag `v2.3`
 
 ## Hero GIF (2026-10-21)
 Done: `docs/media/hero.gif` via `python scripts/record_hero_gif.py` (needs playwright and pillow in the local `.venv` only; Pillow was installed there). Gotcha: `unittest discover -s tests_hub` needs `-t .`. Next: video; Pages demo needs P4. Ask before pushing (main is ahead of origin/main).
+
+## v3.0 core (2026-10-21)
+P1 and P3 approved. `incident_commander/` is no longer frozen, but only `commander.py` may change (ADR-0005). The graded code is on `origin/submission`. After merging `v3.0-core`, tag `v3.0` (ask first): X1 then requires an empty core diff against that tag. Next: hub using `on_event` and `runbooks=` (live progress, runbook editor item 38). Ask before pushing, tagging or deleting branches.

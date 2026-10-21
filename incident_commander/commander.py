@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 
 from .approval import ApprovalGate, ApprovalOutcome, Responder
@@ -30,6 +31,7 @@ from .types import (
     Execution,
     Observation,
     PostmortemDraft,
+    Runbook,
     TraceEvent,
     Verification,
 )
@@ -88,11 +90,21 @@ class IllegalTransition(Exception):
 
 
 class Trace:
-    """Append-only event log. Only `emit` adds; `events` is a read-only snapshot."""
+    """Append-only event log. Only `emit` adds; `events` is a read-only snapshot.
 
-    def __init__(self, data_clock: DataClock, control_clock: ControlClock) -> None:
+    `on_event` is an optional observer called with each event after it is appended. It cannot change
+    or remove an event; an exception it raises propagates to the caller.
+    """
+
+    def __init__(
+        self,
+        data_clock: DataClock,
+        control_clock: ControlClock,
+        on_event: Callable[[TraceEvent], None] | None = None,
+    ) -> None:
         self._data = data_clock
         self._control = control_clock
+        self._on_event = on_event
         self._events: list[TraceEvent] = []
 
     def emit(self, kind: str, **fields: object) -> None:
@@ -104,6 +116,8 @@ class Trace:
             tuple(fields.items()),
         )
         self._events.append(event)
+        if self._on_event is not None:
+            self._on_event(event)
 
     @property
     def events(self) -> tuple[TraceEvent, ...]:
@@ -165,11 +179,19 @@ class Commander:
         self._move(case, HANDOFF)
         case.trace.emit("HANDOFF", alert=case.alert.alert_id, reason=reason)
 
-    def run(self, alert: Alert, *, fix_outcome: str = "success") -> Case:
+    def run(
+        self,
+        alert: Alert,
+        *,
+        fix_outcome: str = "success",
+        runbooks: Mapping[str, Runbook] | None = None,
+        on_event: Callable[[TraceEvent], None] | None = None,
+    ) -> Case:
         if fix_outcome not in REMEDIATION_OUTCOMES:
             raise ValueError(f"unknown fix_outcome: {fix_outcome}")
+        books = RUNBOOKS if runbooks is None else runbooks
         clock = DataClock(alert.fired_at + DATA_CLOCK_START_OFFSET_S)
-        case = Case(alert.alert_id, alert, Trace(clock, self._control))
+        case = Case(alert.alert_id, alert, Trace(clock, self._control, on_event))
         trace = case.trace
         trace.emit(
             "ALERT_RECEIVED",
@@ -189,7 +211,7 @@ class Commander:
         )
         self._move(case, INVESTIGATING)
         case.investigation = investigate(
-            alert, self._ranker, ToolBox(self._world, clock), trace=trace
+            alert, self._ranker, ToolBox(self._world, clock), trace=trace, runbooks=books
         )
         verdict = case.investigation.verdict
         trace.emit(
@@ -204,8 +226,8 @@ class Commander:
             self._handoff(case, verdict.kind)
         else:
             self._move(case, MATCHED)
-            self._remediate(case, RUNBOOKS[verdict.runbook_id].action, clock, fix_outcome)
-        self._draft(case, clock)
+            self._remediate(case, books[verdict.runbook_id].action, clock, fix_outcome)
+        self._draft(case, clock, books)
         return case
 
     def _remediate(self, case: Case, action: str, clock: DataClock, fix_outcome: str) -> None:
@@ -291,12 +313,12 @@ class Commander:
         )
         return result
 
-    def _draft(self, case: Case, clock: DataClock) -> None:
+    def _draft(self, case: Case, clock: DataClock, books: Mapping[str, Runbook]) -> None:
         alert = case.alert
         start, end = alert.fired_at - LOOKBACK_S, alert.fired_at
         case.logs = get_logs(self._world, clock, alert.service, start, end)  # Scribe only
         verdict = case.investigation.verdict if case.investigation else None
-        runbook = RUNBOOKS.get(verdict.runbook_id) if verdict and verdict.runbook_id else None
+        runbook = books.get(verdict.runbook_id) if verdict and verdict.runbook_id else None
         draft = build_draft(case.trace.events, case.logs, runbook)
         self._move(case, DRAFTED)
         case.draft = draft

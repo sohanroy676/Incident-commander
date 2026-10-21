@@ -19,7 +19,7 @@ web hub (`ic_hub`) lets you run, approve and replay incidents in a browser.
 - **The LLM is optional and boxed in.** With it on or off the decisions are identical; every reply passes a deterministic guard and falls back to a template.
 - **It tests itself.** Six Definition-of-Done gates, a golden set, a naive baseline for comparison, and an unedited trace as evidence (`traces/run.txt`).
 
-**Status: v2.2 (local hub).** The graded build is tagged `v1.0` and `incident_commander/` is frozen (`git diff v1.0 -- incident_commander/`
+**Status: v2.2 (local hub).** The graded build is tagged `v1.0` and `incident_commander/` is frozen apart from the v3.0 hooks in `commander.py` (ADR-0005; branch `submission` and tag `v2.3` hold the graded code; `git diff v1.0 -- incident_commander/`
 is empty). All eight milestones (M1 to M8) run with one command and all six gates (G1 to G6) pass with one command.
 Planning documents: `ROADMAP.md`, `docs/DETAILED_ROADMAP.md`, `docs/PHASE1.md` to `PHASE5.md`, `docs/ARCHITECTURE.md`.
 
@@ -212,7 +212,7 @@ trace for the report. Do not edit a trace by hand.
 The v2.3 hub extras (charts, what-if toggles, evaluate view, run history, audit log, Alertmanager-shaped intake, metrics strip,
 approval stream, dark mode and shortcuts) are built; a dev-only browser check is `python scripts/playwright_smoke.py`
 (needs `pip install playwright` and `playwright install chromium`, not in CI). The hero GIF is regenerated with `python scripts/record_hero_gif.py` (also needs `pip install pillow`). The pluggable core (v3.0, which needs a separate unfreeze approval) is proposed in
-[`docs/EXTENSION_PLAN.md`](docs/EXTENSION_PLAN.md) and [`ROADMAP.md`](ROADMAP.md). Until v3.0 is approved the graded package stays frozen at `v1.0`.
+[`docs/EXTENSION_PLAN.md`](docs/EXTENSION_PLAN.md) and [`ROADMAP.md`](ROADMAP.md). v3.0 (P1, P3) is approved and touches `commander.py` only; the graded code for submission is on branch `submission`.
 
 ## Extended build (`ic_plus`, optional)
 

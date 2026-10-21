@@ -50,23 +50,30 @@ class TestIsolation(unittest.TestCase):
         )
         self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
 
-    def test_graded_package_is_unchanged_since_v1_0(self) -> None:
-        probe = subprocess.run(
-            ["git", "rev-parse", "--verify", "--quiet", "v1.0^{commit}"],
-            check=False,
-            cwd=ROOT,
-            capture_output=True,
-        )
-        if probe.returncode != 0:
-            self.skipTest("tag v1.0 is not available (shallow clone)")
+    def test_graded_package_changes_only_in_the_v3_files(self) -> None:
+        def tag_exists(tag: str) -> bool:
+            probe = subprocess.run(
+                ["git", "rev-parse", "--verify", "--quiet", f"{tag}^{{commit}}"],
+                check=False,
+                cwd=ROOT,
+                capture_output=True,
+            )
+            return probe.returncode == 0
+
+        v3 = tag_exists("v3.0")
+        baseline = "v3.0" if v3 else "v2.3"
+        if not tag_exists(baseline):
+            self.skipTest(f"tag {baseline} is not available (shallow clone)")
         diff = subprocess.run(
-            ["git", "diff", "v1.0", "--", "incident_commander/"],
+            ["git", "diff", "--name-only", baseline, "--", "incident_commander/"],
             check=False,
             cwd=ROOT,
             capture_output=True,
             text=True,
         )
-        self.assertEqual(diff.stdout, "")
+        # v3.0 (P1) may touch commander.py only; v1.0 to v2.3 was empty and X1 checks that too.
+        allowed = set() if v3 else {"incident_commander/commander.py"}
+        self.assertLessEqual(set(diff.stdout.split()), allowed)
 
 
 if __name__ == "__main__":

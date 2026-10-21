@@ -48,8 +48,10 @@ def _commander(world: SimWorld, silent: bool = False) -> Commander:
     return Commander(world, ranker, ScriptedResponder(script))
 
 
-def _run(world: SimWorld, alert_id: str, silent: bool = False, **kwargs: str) -> Case:
-    return _commander(world, silent).run(world.alert(alert_id), **kwargs)
+def _run(
+    world: SimWorld, alert_id: str, silent: bool = False, fix_outcome: str = "success"
+) -> Case:
+    return _commander(world, silent).run(world.alert(alert_id), fix_outcome=fix_outcome)
 
 
 def stale_data() -> ScenarioResult:
