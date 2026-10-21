@@ -1,4 +1,4 @@
-"""CLI: python -m ic_plus run <ALERT>|--all | explain <ALERT> <question> | evaluate | scenario <name>|all
+"""CLI: python -m ic_plus run <ALERT>|--all | explain <ALERT> <question> | evaluate | scenario <name>|all | generate
 [--llm off|local|hosted]."""
 
 from __future__ import annotations
@@ -20,6 +20,7 @@ from .approver_cli import CliResponder
 from .clientcfg import build_client
 from .envfile import load_env
 from .explainer import FALLBACK_LABEL, clean_question, explain, template_answer
+from .generator import format_report, generate, run_scenario
 from .llm_client import LLMClient
 from .narrator import UNAVAILABLE_LINE, build_facts, narrate
 from .scenarios import SCENARIOS, _commander
@@ -146,6 +147,13 @@ def _run_scenarios(name: str) -> int:
     return 0 if ok else 1
 
 
+def _generate(seed: int, count: int) -> int:
+    results = [run_scenario(s) for s in generate(seed, count)]
+    for line in format_report(seed, results):
+        print(line)
+    return 0 if all(r.ok for r in results) else 1
+
+
 def _llm_arg(value: str) -> str:
     if value not in ("off", "local", "hosted"):
         raise argparse.ArgumentTypeError(
@@ -181,7 +189,14 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("evaluate", parents=[after], help="M8 plus X3: decisions unchanged with LLM on")
     scenario = sub.add_parser("scenario", parents=[after], help="one extra scenario, or all")
     scenario.add_argument("name", choices=(*SCENARIOS, "all"))
+    gen = sub.add_parser("generate", help="seeded generated scenarios and a confusion matrix")
+    gen.add_argument("--seed", type=int, default=0)
+    gen.add_argument("--count", type=int, default=20)
     args = parser.parse_args(argv)
+    if args.command == "generate":
+        if not 1 <= args.count <= 200:
+            parser.error("--count must be between 1 and 200")
+        return _generate(args.seed, args.count)
     if args.command == "scenario":
         return _run_scenarios(args.name)
     if args.command == "explain":
