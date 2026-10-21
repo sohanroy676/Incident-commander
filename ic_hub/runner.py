@@ -11,6 +11,7 @@ import dataclasses
 import math
 import secrets
 import threading
+import time
 from collections import OrderedDict
 from collections.abc import Callable, Mapping
 
@@ -33,11 +34,13 @@ from incident_commander.evaluate import (
     run_golden,
 )
 from incident_commander.fixtures.alerts import ALERTS
+from incident_commander.fixtures.golden import GOLDEN_ALERTS, GOLDEN_SERVICES
 from incident_commander.fixtures.runbooks import RUNBOOKS
+from incident_commander.fixtures.services import SERVICES, ServiceSpec
 from incident_commander.postmortem import OutboxNotifier, render
 from incident_commander.report import case_decision_lines
 from incident_commander.retrieval import HybridRanker
-from incident_commander.types import TraceEvent
+from incident_commander.types import Alert, TraceEvent
 from incident_commander.world import SimWorld
 
 from .charts import build_chart, diff_runs
@@ -45,9 +48,12 @@ from .responder import WebResponder
 from .schema import (
     BUILTIN_ALERTS,
     BUILTIN_SERVICES,
+    INTAKE_SEVERITY,
+    MAX_INTAKE,
     MAX_UPLOADS,
     Upload,
     ValidationError,
+    validate_alertmanager,
     validate_upload,
 )
 from .store import Store
@@ -109,6 +115,13 @@ class Run:
         self.result: dict[str, object] | None = None
         self.case: Case | None = None
         self.commander: Commander | None = None
+        self.started = time.monotonic()
+        self.ended: float | None = None
+
+    def stream_view(self) -> dict[str, object]:
+        """The small, changing part of the view: what the approval stream sends."""
+        pending = self.responder.pending() if self.responder and self.status == "running" else None
+        return {"status": self.status, "pending": pending, "error": self.error}
 
     def view(self) -> dict[str, object]:
         pending = self.responder.pending() if self.responder and self.status == "running" else None
@@ -136,12 +149,16 @@ class Hub:
         self._uploads: list[Upload] = []
         self._runs: OrderedDict[str, Run] = OrderedDict()
         self._active = 0
+        # alert_id -> display-only Alertmanager text; nothing in it reaches a run
+        self._intake: dict[str, dict[str, object]] = {}
+        self._counts: dict[str, int] = {"incident_runs_started": 0}
+        self._approvals: dict[str, int] = {}
 
     # -- uploads and alerts -------------------------------------------------
 
     def add_upload(self, raw: object) -> Upload:
         with self._lock:
-            if len(self._uploads) >= MAX_UPLOADS:
+            if len(self._uploads) - len(self._intake) >= MAX_UPLOADS:
                 raise ValidationError({"upload": f"at most {MAX_UPLOADS} uploads"})
             services = BUILTIN_SERVICES | {u.service.name for u in self._uploads}
             alerts = BUILTIN_ALERTS | {u.alert.alert_id for u in self._uploads}
@@ -150,6 +167,72 @@ class Hub:
         self._audit("upload_added", alert_id=upload.alert.alert_id, service=upload.service.name)
         return upload
 
+    def add_intake(self, raw: object) -> list[dict[str, str]]:
+        """Alertmanager webhook -> alerts on services the hub already holds.
+
+        Labels and annotations are kept as display text beside the alert and are never read by a
+        run. A repeated fingerprint on the same service returns the earlier alert id.
+        """
+        with self._lock:
+            drafts = validate_alertmanager(raw, self._reference_alert)
+            known = {
+                (str(m["fingerprint"]), str(m["service"])): aid
+                for aid, m in self._intake.items()
+                if m["fingerprint"]
+            }
+            fresh = [
+                d for d in drafts if (d.fingerprint, d.service) not in known or not d.fingerprint
+            ]
+            if len(self._intake) + len(fresh) > MAX_INTAKE:
+                raise ValidationError({"alerts": f"at most {MAX_INTAKE} Alertmanager alerts"})
+            accepted = []
+            for draft in drafts:
+                key = (draft.fingerprint, draft.service)
+                if draft.fingerprint and key in known:
+                    accepted.append(
+                        {"alert_id": known[key], "service": draft.service, "status": "duplicate"}
+                    )
+                    continue
+                ref = self._reference_alert(draft.service)
+                if ref is None:  # cannot happen: validated above under the same lock
+                    raise ValidationError({"alerts": f"no reference alert for {draft.service}"})
+                alert = Alert(
+                    "AM-" + secrets.token_hex(4),
+                    draft.service,
+                    ref.fired_at,  # the service's own incident time: startsAt is wall-clock text
+                    INTAKE_SEVERITY,
+                    draft.metric,
+                    draft.summary,
+                )
+                self._uploads.append(Upload(self._service_spec(draft.service), alert, {}))
+                self._intake[alert.alert_id] = {
+                    "service": draft.service,
+                    "fingerprint": draft.fingerprint,
+                    "labels": dict(draft.labels),
+                    "annotations": dict(draft.annotations),
+                    "starts_at": draft.starts_at,
+                }
+                known[key] = alert.alert_id
+                accepted.append(
+                    {"alert_id": alert.alert_id, "service": draft.service, "status": "added"}
+                )
+        added = [a["alert_id"] for a in accepted if a["status"] == "added"]
+        if added:
+            self._audit("alertmanager_intake", count=len(added), alert_ids=",".join(added))
+        return accepted
+
+    def _reference_alert(self, service: str) -> Alert | None:
+        """An existing, non-intake alert on this service (caller holds the lock)."""
+        pool = [*ALERTS.values(), *GOLDEN_ALERTS.values()]
+        pool += [u.alert for u in self._uploads if u.alert.alert_id not in self._intake]
+        return next((a for a in pool if a.service == service), None)
+
+    def _service_spec(self, name: str) -> ServiceSpec:
+        spec = SERVICES.get(name) or GOLDEN_SERVICES.get(name)
+        if spec is not None:
+            return spec
+        return next(u.service for u in self._uploads if u.service.name == name)
+
     def uploads(self) -> tuple[Upload, ...]:
         with self._lock:
             return tuple(self._uploads)
@@ -157,10 +240,14 @@ class Hub:
     def alert_rows(self) -> list[dict[str, object]]:
         world = HubWorld(self.uploads())
         uploaded = {u.alert.alert_id for u in self.uploads()}
+        with self._lock:
+            intake = {k: dict(v) for k, v in self._intake.items()}
         rows = []
         for alert_id in world.alert_ids():
             a = world.alert(alert_id)
-            if alert_id in uploaded:
+            if alert_id in intake:
+                source = "intake"
+            elif alert_id in uploaded:
                 source = "upload"
             elif alert_id in ALERTS:
                 source = "demo"
@@ -177,6 +264,10 @@ class Hub:
                     "source": source,
                 }
             )
+            if alert_id in intake:
+                rows[-1]["labels"] = intake[alert_id]["labels"]
+                rows[-1]["annotations"] = intake[alert_id]["annotations"]
+                rows[-1]["starts_at"] = intake[alert_id]["starts_at"]
         return rows
 
     def known_alerts(self) -> frozenset[str]:
@@ -226,6 +317,8 @@ class Hub:
             ):
                 raise Conflict("an evaluation is already running")
             self._active += 1
+            if run.kind == "run":
+                self._counts["incident_runs_started"] += 1
             self._runs[run.run_id] = run
             while len(self._runs) > MAX_STORED_RUNS:
                 oldest = next((k for k, r in self._runs.items() if r.status != "running"), None)
@@ -256,10 +349,36 @@ class Hub:
                 run.error = f"{type(exc).__name__}: {exc}"
                 run.status = "error"
             finally:
+                run.ended = time.monotonic()
                 with self._lock:
                     self._active -= 1
 
         threading.Thread(target=job, daemon=True).start()
+
+    def metrics(self) -> dict[str, object]:
+        """Counters only: no label, log or other free text. Outcome names are fixed vocabularies."""
+        with self._lock:
+            runs = [r for r in self._runs.values() if r.kind == "run"]
+            states: dict[str, int] = {}
+            seconds = []
+            for r in runs:
+                if r.status == "done" and r.result is not None:
+                    state = str(r.result.get("state"))
+                    states[state] = states.get(state, 0) + 1
+                if r.status == "done" and r.ended is not None:
+                    seconds.append(r.ended - r.started)
+            return {
+                "runs_started": self._counts["incident_runs_started"],
+                "runs_running": sum(r.status == "running" for r in runs),
+                "runs_done": sum(r.status == "done" for r in runs),
+                "runs_failed": sum(r.status == "error" for r in runs),
+                "states": states,
+                "approvals": dict(self._approvals),
+                "mean_run_s": round(sum(seconds) / len(seconds), 3) if seconds else None,
+                "intake_alerts": len(self._intake),
+                "uploads": len(self._uploads) - len(self._intake),
+                "scope": f"state and timing cover the last {MAX_STORED_RUNS} stored runs",
+            }
 
     def get(self, run_id: str) -> Run:
         with self._lock:
@@ -310,6 +429,7 @@ class Hub:
         finally:
             if run.responder is not None:
                 run.responder.close()
+            run.ended = time.monotonic()
             with self._lock:
                 self._active -= 1
 
@@ -416,6 +536,8 @@ class Hub:
             raise Conflict("this run is not waiting for a web approval")
         pending = run.responder.pending()
         outcome = run.responder.submit(nonce, decision)
+        with self._lock:
+            self._approvals[outcome] = self._approvals.get(outcome, 0) + 1
         self._audit(
             "approval_answer",
             run_id=run_id,
