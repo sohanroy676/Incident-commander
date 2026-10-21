@@ -7,7 +7,43 @@ const REPLAY_MS = 250;
 const POLL_MS = 200;
 
 let currentRun = null;
+let lastAlert = null;
 let replayTimer = null;
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// Theme: follows the system until the person picks one; the choice is a per-browser convenience.
+function applyTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  const dark = theme === "dark";
+  $("theme-btn").setAttribute("aria-pressed", String(dark));
+  $("theme-btn").textContent = dark ? "Light theme" : "Dark theme";
+  $("theme-btn").setAttribute("aria-label", dark ? "Use light theme (shortcut t)" : "Use dark theme (shortcut t)");
+}
+
+function currentTheme() {
+  const set = document.documentElement.dataset.theme;
+  if (set) return set;
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
+function toggleTheme() {
+  const next = currentTheme() === "dark" ? "light" : "dark";
+  applyTheme(next);
+  try {
+    localStorage.setItem("hub-theme", next);
+  } catch (error) {
+    // storage may be blocked; the choice then lasts for this page only
+  }
+}
+
+try {
+  const saved = localStorage.getItem("hub-theme");
+  if (saved === "dark" || saved === "light") document.documentElement.dataset.theme = saved;
+} catch (error) {
+  // storage may be blocked
+}
+applyTheme(currentTheme());
+$("theme-btn").addEventListener("click", toggleTheme);
 const finishedRuns = [];
 const SVG_NS = "http://www.w3.org/2000/svg";
 
@@ -42,6 +78,7 @@ async function loadAlerts() {
     cell(row, a.metric);
     cell(row, a.source);
     cell(row, a.summary);
+    cell(row, a.labels ? Object.entries(a.labels).map(([k, v]) => `${k}=${v}`).join(", ") : "");
     const button = document.createElement("button");
     button.type = "button";
     button.textContent = "Run";
@@ -76,8 +113,9 @@ async function startRun(alertId) {
     return;
   }
   currentRun = data.run_id;
+  lastAlert = alertId;
   $("run-status").textContent = `Running ${alertId}...`;
-  pollRun(data.run_id);
+  followRun(data.run_id);
 }
 
 function describe(data) {
@@ -85,16 +123,64 @@ function describe(data) {
   return [data.error, ...fields].join(" | ");
 }
 
-async function pollRun(runId) {
-  const { ok, data } = await api("GET", `/api/runs/${runId}`);
-  if (!ok || runId !== currentRun) return;
-  showApproval(runId, data.pending);
-  if (data.status === "running") {
-    setTimeout(() => pollRun(runId), POLL_MS);
-  } else if (data.status === "error") {
-    $("run-status").textContent = `Run failed: ${data.error}`;
-  } else {
-    showResult(data.result);
+// Reads the approval stream with fetch, so the token header still applies. Resolves true if the
+// stream opened (it ends when the run does, or after the server's time limit), false if it could not.
+async function readStream(runId) {
+  try {
+    const response = await fetch(`/api/runs/${runId}/stream`, { headers: { "X-Hub-Token": TOKEN } });
+    if (!response.ok || !response.body) return false;
+    $("stream-status").textContent = "Live updates: stream.";
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) return true;
+      if (runId !== currentRun) {
+        reader.cancel();
+        return true;
+      }
+      buffer += decoder.decode(value, { stream: true });
+      let cut = buffer.indexOf("\n\n");
+      while (cut >= 0) {
+        handleStreamBlock(runId, buffer.slice(0, cut));
+        buffer = buffer.slice(cut + 2);
+        cut = buffer.indexOf("\n\n");
+      }
+    }
+  } catch (error) {
+    return false;
+  }
+}
+
+function handleStreamBlock(runId, block) {
+  const data = block.split("\n").filter((line) => line.startsWith("data: ")).map((line) => line.slice(6)).join("");
+  if (!data || block.startsWith("event: end")) return;
+  try {
+    const view = JSON.parse(data);
+    if (view.status === "running") showApproval(runId, view.pending);
+  } catch (error) {
+    // a damaged event is skipped; the next fetch of the run is the source of truth
+  }
+}
+
+async function followRun(runId) {
+  let live = true;
+  while (runId === currentRun) {
+    if (live) live = await readStream(runId);
+    if (!live) $("stream-status").textContent = "Live updates: polling.";
+    const { ok, data } = await api("GET", `/api/runs/${runId}`);
+    if (!ok || runId !== currentRun) return;
+    showApproval(runId, data.pending);
+    if (data.status === "error") {
+      $("run-status").textContent = `Run failed: ${data.error}`;
+      return;
+    }
+    if (data.status !== "running") {
+      showResult(data.result);
+      return;
+    }
+    if (!live) await sleep(POLL_MS);
   }
 }
 
@@ -132,6 +218,7 @@ function showResult(result) {
   rememberRun(currentRun);
   loadSimilar(currentRun);
   loadHistory();
+  loadMetrics();
   const list = $("trace");
   let i = 0;
   const finish = () => {
@@ -416,29 +503,83 @@ $("eval-btn").addEventListener("click", async () => {
   });
 });
 
-$("upload-btn").addEventListener("click", async () => {
-  const errors = $("upload-errors");
+function showErrors(list, data) {
+  for (const [field, message] of Object.entries(data.fields || {})) textItem(list, `${field}: ${message}`);
+  if (!Object.keys(data.fields || {}).length) textItem(list, data.error);
+}
+
+// Posts the JSON in a textarea; returns the response, or null after showing a parse error.
+async function submitJson(box, errors, path) {
   errors.replaceChildren();
-  $("upload-ok").textContent = "";
   let body;
   try {
-    body = JSON.parse($("upload").value);
+    body = JSON.parse(box.value);
   } catch (error) {
-    errors.appendChild(Object.assign(document.createElement("li"), { textContent: `not valid JSON: ${error.message}` }));
-    return;
+    textItem(errors, `not valid JSON: ${error.message}`);
+    return null;
   }
-  const { ok, data } = await api("POST", "/api/uploads", body);
-  if (ok) {
-    $("upload-ok").textContent = `Added ${data.alert_id} on ${data.service}.`;
+  const reply = await api("POST", path, body);
+  if (!reply.ok) showErrors(errors, reply.data);
+  return reply;
+}
+
+$("upload-btn").addEventListener("click", async () => {
+  $("upload-ok").textContent = "";
+  const reply = await submitJson($("upload"), $("upload-errors"), "/api/uploads");
+  if (reply && reply.ok) {
+    $("upload-ok").textContent = `Added ${reply.data.alert_id} on ${reply.data.service}.`;
     loadAlerts();
-    return;
+    loadMetrics();
   }
-  for (const [field, message] of Object.entries(data.fields || {})) {
-    errors.appendChild(Object.assign(document.createElement("li"), { textContent: `${field}: ${message}` }));
+});
+
+$("am-btn").addEventListener("click", async () => {
+  $("am-ok").textContent = "";
+  const reply = await submitJson($("am-json"), $("am-errors"), "/api/intake/alertmanager");
+  if (reply && reply.ok) {
+    $("am-ok").textContent = reply.data.alerts.map((a) => `${a.status} ${a.alert_id} on ${a.service}`).join("; ");
+    loadAlerts();
+    loadMetrics();
   }
-  if (!Object.keys(data.fields || {}).length) {
-    errors.appendChild(Object.assign(document.createElement("li"), { textContent: data.error }));
+});
+
+async function loadMetrics() {
+  const { ok, data } = await api("GET", "/api/metrics");
+  if (!ok) return;
+  const pairs = [
+    ["runs started", data.runs_started],
+    ["running", data.runs_running],
+    ["done", data.runs_done],
+    ["failed", data.runs_failed],
+    ["mean run (s)", data.mean_run_s === null ? "n/a" : data.mean_run_s],
+    ["alerts via Alertmanager", data.intake_alerts],
+    ["uploads", data.uploads],
+    ...Object.entries(data.states).map(([k, v]) => [`ended ${k}`, v]),
+    ...Object.entries(data.approvals).map(([k, v]) => [`approval ${k}`, v]),
+  ];
+  const strip = $("metrics");
+  strip.replaceChildren();
+  for (const [label, value] of pairs) {
+    const li = document.createElement("li");
+    const number = document.createElement("strong");
+    number.textContent = String(value);
+    li.appendChild(number);
+    li.appendChild(document.createTextNode(label));
+    strip.appendChild(li);
   }
+  strip.title = data.scope;
+}
+
+document.addEventListener("keydown", (event) => {
+  if (event.ctrlKey || event.metaKey || event.altKey) return;
+  const target = event.target;
+  if (target instanceof HTMLElement && target.matches("input, textarea, select")) return;
+  const asking = !$("approval").hidden;
+  if (event.key === "r" && lastAlert) startRun(lastAlert);
+  else if (event.key === "t") toggleTheme();
+  else if (event.key === "?") $("shortcuts").open = !$("shortcuts").open;
+  else if (event.key === "A" && asking) $("approve").click();
+  else if (event.key === "D" && asking) $("deny").click();
 });
 
 $("upload").value = JSON.stringify(
@@ -465,5 +606,25 @@ $("upload").value = JSON.stringify(
   2,
 );
 
+$("am-json").value = JSON.stringify(
+  {
+    version: "4",
+    status: "firing",
+    receiver: "incident-hub",
+    alerts: [
+      {
+        status: "firing",
+        labels: { alertname: "HighLatency", service: "checkout-service", severity: "critical" },
+        annotations: { summary: "checkout latency is high" },
+        startsAt: "2026-10-21T09:00:00Z",
+        fingerprint: "a1b2c3d4e5f60718",
+      },
+    ],
+  },
+  null,
+  2,
+);
+
 loadAlerts();
 loadHistory();
+loadMetrics();

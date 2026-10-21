@@ -8,15 +8,30 @@
 <link rel="stylesheet" href="/app.css">
 </head>
 <body>
+<a class="skip" href="#main">Skip to main content</a>
 <header>
-  <h1>Incident Commander hub</h1>
+  <div class="bar">
+    <h1>Incident Commander hub</h1>
+    <button id="theme-btn" type="button" aria-pressed="false" aria-label="Use dark theme (shortcut t)">Dark theme</button>
+  </div>
   <p class="note">Local, simulated data only. Approver names (priya, devon) are simulated, not authenticated.</p>
+  <details id="shortcuts">
+    <summary>Keyboard shortcuts (<kbd>?</kbd>)</summary>
+    <ul>
+      <li><kbd>r</kbd> run the last alert again</li>
+      <li><kbd>t</kbd> switch light and dark theme</li>
+      <li><kbd>Shift</kbd>+<kbd>A</kbd> approve and <kbd>Shift</kbd>+<kbd>D</kbd> deny, only while an approval card is showing</li>
+      <li><kbd>?</kbd> show or hide this list</li>
+    </ul>
+    <p class="note">Shortcuts are off while you type in a field.</p>
+  </details>
+  <ul id="metrics" class="strip" aria-label="Hub metrics" aria-live="polite"></ul>
 </header>
-<main>
+<main id="main">
   <section aria-labelledby="h-incidents">
     <h2 id="h-incidents">Incidents</h2>
-    <table id="alerts"><thead><tr>
-      <th>Alert</th><th>Service</th><th>Metric</th><th>Source</th><th>Summary</th><th></th>
+    <table id="alerts"><caption class="sr-only">Alerts the hub can run</caption><thead><tr>
+      <th scope="col">Alert</th><th scope="col">Service</th><th scope="col">Metric</th><th scope="col">Source</th><th scope="col">Summary</th><th scope="col">Labels (Alertmanager text)</th><th scope="col"><span class="sr-only">Action</span></th>
     </tr></thead><tbody></tbody></table>
     <div class="controls">
       <label>Approver
@@ -41,10 +56,11 @@
   <section aria-labelledby="h-run">
     <h2 id="h-run">Run</h2>
     <p id="run-status" aria-live="polite">No run yet.</p>
-    <div id="approval" hidden>
+    <p id="stream-status" class="note" aria-live="polite"></p>
+    <div id="approval" role="group" aria-label="Approval request" hidden>
       <p><strong id="approval-target"></strong> was paged. Time left on this page: <span id="approval-left"></span> s</p>
-      <button id="approve" type="button">Approve</button>
-      <button id="deny" type="button">Deny</button>
+      <button id="approve" type="button" aria-keyshortcuts="Shift+A">Approve</button>
+      <button id="deny" type="button" aria-keyshortcuts="Shift+D">Deny</button>
     </div>
     <ol id="trace" class="trace"></ol>
     <button id="skip" type="button" hidden>Skip replay</button>
@@ -133,6 +149,15 @@
     <button id="play" type="button">Run both</button>
     <p id="play-status" aria-live="polite"></p>
     <div class="cols"><div><h3>Clean</h3><pre id="play-clean"></pre></div><div><h3>Planted</h3><pre id="play-planted"></pre></div></div>
+  </section>
+
+  <section aria-labelledby="h-am">
+    <h2 id="h-am">Alertmanager intake</h2>
+    <p class="note">Paste an Alertmanager webhook (version 4) for a service this hub already holds. Labels and annotations are shown as text only: the alert's severity is fixed, and nothing in them reaches a decision. The <code>service</code> label picks the service; <code>startsAt</code> is kept as text.</p>
+    <textarea id="am-json" rows="14" spellcheck="false" aria-label="Alertmanager webhook JSON"></textarea>
+    <button id="am-btn" type="button">Validate and add</button>
+    <ul id="am-errors" class="error" role="alert"></ul>
+    <p id="am-ok" aria-live="polite"></p>
   </section>
 
   <section aria-labelledby="h-upload">
