@@ -88,6 +88,8 @@ class Stream:
                 data.append(text[6:])
 
     def close(self) -> None:
+        # a "Connection: close" reply hands the socket to the response, so close both
+        self.resp.close()
         self.conn.close()
 
 
