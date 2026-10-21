@@ -1,0 +1,21 @@
+{
+  "runbooks": [
+    {
+      "runbook_id": "RB-DEMO-1",
+      "title": "Error step with healthy dependencies",
+      "text": "Error rate jumped in one step while latency stays normal. No recent release and every dependency is healthy, so the fault is inside the service itself. Restart the service to clear the bad state.",
+      "signature": [
+        "latency_normal",
+        "error_elevated",
+        "error_step_change",
+        "no_deploy_in_window",
+        "dependency_healthy"
+      ],
+      "action": "restart_service",
+      "follow_ups": [
+        "Find out what changed inside the service at the moment of the step",
+        "Add an error-rate step alert for this service"
+      ]
+    }
+  ]
+}

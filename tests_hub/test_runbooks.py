@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import copy
+import json
 import unittest
+from pathlib import Path
 
 from ic_hub.runner import MAX_RUNBOOK_SETS
 from ic_hub.schema import (
@@ -21,6 +23,8 @@ from incident_commander.predicates import PREDICATES
 
 from .support import HubTestCase, saved_decisions
 
+DEMO_SET = Path(__file__).resolve().parent.parent / "docs" / "examples" / "runbooks-v33-demo.json"
+
 
 def builtin_payload() -> dict:
     return {
@@ -36,6 +40,10 @@ def builtin_payload() -> dict:
             for r in RUNBOOKS.values()
         ]
     }
+
+
+def demo_payload() -> dict:
+    return json.loads(DEMO_SET.read_text(encoding="utf-8"))
 
 
 def with_book(index: int = 0, **over: object) -> dict:
@@ -246,6 +254,30 @@ class TestRunsWithRunbooks(HubTestCase):
         view = self.run_to_end("ALRT-9002", runbook_set=self.new_set(only))
         self.assertEqual(view["status"], "done")
         self.assertIn("runbook=ONLY-1", " ".join(view["result"]["decision_lines"]))
+
+    def test_the_v3_3_demo_set_resolves_the_alert_the_builtin_set_hands_off(self) -> None:
+        demo = demo_payload()
+        builtin = " ".join(self.lines("ALRT-9003"))
+        self.assertIn("verdict=no_confident_match", builtin)
+        lines = self.lines("ALRT-9003", self.new_set(demo))
+        self.assertIn("runbook=RB-DEMO-1", " ".join(lines))
+        classify = next(x for x in lines if x.startswith("DECISION classify"))
+        self.assertIn("tier=low", classify)
+
+    def test_the_demo_set_does_not_match_alerts_with_another_shape(self) -> None:
+        set_id = self.new_set(demo_payload())
+        for alert_id in ("ALRT-9001", "ALRT-9002"):
+            with self.subTest(alert_id=alert_id):
+                lines = self.lines(alert_id, set_id)
+                self.assertIn("verdict=no_confident_match", lines[0])
+                self.assertFalse(any(x.startswith("DECISION execute") for x in lines))
+
+    def test_a_gradual_trend_signature_does_not_match_a_step(self) -> None:
+        payload = demo_payload()
+        sig = payload["runbooks"][0]["signature"]
+        sig[sig.index("error_step_change")] = "error_gradual_trend"
+        lines = self.lines("ALRT-9003", self.new_set(payload))
+        self.assertIn("verdict=no_confident_match", lines[0])
 
 
 if __name__ == "__main__":
