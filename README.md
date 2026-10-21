@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/sohanroy676/incident-commander/actions/workflows/ci.yml/badge.svg)](https://github.com/sohanroy676/incident-commander/actions/workflows/ci.yml)
 ![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)
+![License: MIT](https://img.shields.io/badge/license-MIT-green)
 
 ![Incident Commander hub: run, approve, decisions, evidence chart, dark mode, intake](docs/media/hero.gif)
 
