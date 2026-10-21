@@ -16,9 +16,9 @@ Nothing below is decided. Work on these items does not start until the owner say
 
 | # | Decision | Needed by |
 |---|---|---|
-| P1 | **v3.0 unfreeze** of `incident_commander/` (items 35-37 only) | before v3.0; after course submission and viva |
+| P1 | **v3.0 unfreeze** of `incident_commander/` (items 35-37 only) | **APPROVED 2026-10-21** (owner). Branch `submission` cut first for the course submission |
 | P2 | **Portfolio scope (v2.1+)**: a new section in `projectBrief.md` / `ROADMAP.md` that allows a web UI, local persistence, exports and an intake adapter. The graded "Out of scope" list stays untouched | **APPROVED 2026-10-20** (owner) |
-| P3 | **Re-baselining X1** (`tests_plus/test_release.py:41` diffs against `v1.0`) to a later tag when v3.0 lands | with P1 |
+| P3 | **Re-baselining X1** (`tests_plus/test_release.py:41` diffs against `v1.0`) to a later tag when v3.0 lands | **APPROVED 2026-10-21** with P1 (see ADR-0005) |
 | P4 | **Public Pages demo** (item 41): publishes content outward | before item 41 |
 | P5 | **Item 40** (new predicates): edits the frozen predicate registry, so it is a separate decision | before item 40 |
 | P6 | **License choice and holder name** (item 1); owner to check whether the college claims rights over coursework | before item 1 |
@@ -124,7 +124,7 @@ Prerequisite: P2 approved. Hub imports `incident_commander` and `ic_plus`; neith
 | 43 | P1 | Release workflow: on a tag, build and push the Docker image to GHCR | new |
 | 44 | P2 | `docs/CASE_STUDY.md` | new |
 
-### v3.0 Pluggable core [PENDING] P1, P3. Only version that touches `incident_commander/`
+### v3.0 Pluggable core [APPROVED 2026-10-21] P1, P3. Only version that touches `incident_commander/`
 
 Starts only after the course submission and viva and after owner approval.
 

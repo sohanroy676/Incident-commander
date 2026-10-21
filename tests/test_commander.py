@@ -1,5 +1,6 @@
 """Commander: every path through the state machine, trace discipline, no text in decisions."""
 
+import dataclasses
 import inspect
 import unittest
 from typing import ClassVar
@@ -14,6 +15,7 @@ from incident_commander.commander import (
     Trace,
 )
 from incident_commander.config import STATIC_RANKER_ORDER
+from incident_commander.fixtures.runbooks import RUNBOOKS
 from incident_commander.postmortem import OutboxNotifier, build_draft
 from incident_commander.retrieval import StaticRanker
 from incident_commander.verifier import assess, verify
@@ -176,6 +178,61 @@ class TestTrace(unittest.TestCase):
         self.assertEqual(case.trace.events[0].kind, "ALERT_RECEIVED")
         before_draft = case.trace.events[:-2]  # minus STATE->DRAFTED and DRAFT
         self.assertEqual(case.draft, build_draft(before_draft, case.logs, None))
+
+
+def shape(case):
+    return [(e.seq, e.kind, e.fields) for e in case.trace.events]
+
+
+class TestV3Hooks(unittest.TestCase):
+    """v3.0: optional runbooks= and on_event hooks; defaults must behave exactly as in v1.0."""
+
+    def test_default_runbooks_equal_the_fixture_corpus(self):
+        for alert_id in ("ALRT-9001", "ALRT-9002", "ALRT-9003"):
+            world, cmd = make(DEVON_APPROVES)
+            default = cmd.run(world.alert(alert_id))
+            world, cmd = make(DEVON_APPROVES)
+            explicit = cmd.run(world.alert(alert_id), runbooks=RUNBOOKS)
+            self.assertEqual(shape(default), shape(explicit), alert_id)
+
+    def test_custom_runbooks_reach_the_investigation_and_the_action(self):
+        books = {
+            rid: dataclasses.replace(rb, action="restart_service") if rid == "RB-101" else rb
+            for rid, rb in RUNBOOKS.items()
+        }
+        world, cmd = make(DEVON_APPROVES)
+        case = cmd.run(world.alert("ALRT-9001"), runbooks=books)
+        self.assertEqual(case.investigation.verdict.runbook_id, "RB-101")
+        self.assertEqual(case.action, "restart_service")
+        execute = [dict(e.fields) for e in case.trace.events if e.kind == "EXECUTE"]
+        self.assertEqual(execute[0]["action"], "restart_service")
+
+    def test_a_ranker_that_does_not_match_the_runbooks_is_rejected(self):
+        world, cmd = make({})
+        with self.assertRaises(ValueError):
+            cmd.run(world.alert("ALRT-9001"), runbooks={})
+
+    def test_on_event_sees_every_event_in_order(self):
+        seen = []
+        world, cmd = make(DEVON_APPROVES)
+        case = cmd.run(world.alert("ALRT-9001"), on_event=seen.append)
+        self.assertEqual(tuple(seen), case.trace.events)
+
+    def test_on_event_does_not_change_the_decisions(self):
+        world, cmd = make(DEVON_APPROVES)
+        plain = cmd.run(world.alert("ALRT-9001"))
+        world, cmd = make(DEVON_APPROVES)
+        watched = cmd.run(world.alert("ALRT-9001"), on_event=lambda event: None)
+        self.assertEqual(shape(plain), shape(watched))
+
+    def test_a_failing_observer_propagates_after_the_event_is_appended(self):
+        def boom(event):
+            raise RuntimeError("observer failed")
+
+        trace = Trace(DataClock(0.0), ControlClock(), boom)
+        with self.assertRaises(RuntimeError):
+            trace.emit("A", x=1)
+        self.assertEqual([e.kind for e in trace.events], ["A"])
 
 
 class TestNoTextInDecisions(unittest.TestCase):

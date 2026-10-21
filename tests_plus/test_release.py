@@ -1,4 +1,4 @@
-"""v2.0 release gates X1-X4 in one place, against the saved graded trace and the frozen v1.0 tag."""
+"""v2.0 release gates X1-X4 in one place, against the saved graded trace and the git tags of the graded package (X1 re-baselined for v3.0, P3)."""
 
 import subprocess
 import sys
@@ -25,9 +25,9 @@ def decisions(text: str) -> list[str]:
     return [line for line in text.splitlines() if line.startswith("DECISION ")]
 
 
-def v1_tag_exists() -> bool:
+def tag_exists(tag: str) -> bool:
     probe = subprocess.run(
-        ["git", "rev-parse", "--verify", "--quiet", "v1.0^{commit}"],
+        ["git", "rev-parse", "--verify", "--quiet", f"{tag}^{{commit}}"],
         check=False,
         cwd=ROOT,
         capture_output=True,
@@ -36,11 +36,33 @@ def v1_tag_exists() -> bool:
     return probe.returncode == 0
 
 
+def changed_core_files(baseline: str) -> set[str]:
+    diff = subprocess.run(
+        ["git", "diff", "--name-only", baseline, "--", "incident_commander/"],
+        check=False,
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+    )
+    assert diff.returncode == 0, diff.stderr
+    return set(diff.stdout.split())
+
+
 class TestReleaseGates(unittest.TestCase):
-    @unittest.skipUnless(v1_tag_exists(), "tag v1.0 is not available (shallow clone)")
-    def test_x1_graded_package_is_unchanged_since_v1_0(self):
+    @unittest.skipUnless(tag_exists("v2.3"), "tag v2.3 is not available (shallow clone)")
+    def test_x1_graded_package_changes_only_in_the_v3_files(self):
+        # v3.0 (P1) may touch commander.py only; once tag v3.0 exists the diff against it must be empty.
+        if tag_exists("v3.0"):
+            self.assertEqual(changed_core_files("v3.0"), set())
+        else:
+            self.assertLessEqual(changed_core_files("v2.3"), {"incident_commander/commander.py"})
+
+    @unittest.skipUnless(
+        tag_exists("v1.0") and tag_exists("v2.3"), "tags v1.0 and v2.3 are not available"
+    )
+    def test_x1_graded_package_is_unchanged_from_v1_0_to_v2_3(self):
         diff = subprocess.run(
-            ["git", "diff", "--stat", "v1.0", "--", "incident_commander/"],
+            ["git", "diff", "--stat", "v1.0", "v2.3", "--", "incident_commander/"],
             check=False,
             cwd=ROOT,
             capture_output=True,
