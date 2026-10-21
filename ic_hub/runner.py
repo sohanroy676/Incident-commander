@@ -8,6 +8,8 @@ function the CLI and the scenarios use.
 from __future__ import annotations
 
 import dataclasses
+import hashlib
+import json
 import math
 import secrets
 import threading
@@ -21,8 +23,10 @@ from ic_plus.llm_client import LLMClient
 from ic_plus.narrator import build_facts
 from ic_plus.x3 import advised_orders, advised_orders_of, run_x3
 from incident_commander.approval import ScriptedResponder
+from incident_commander.blast_radius import classify_remediation
 from incident_commander.commander import Case, Commander, IllegalTransition
 from incident_commander.config import (
+    ACTION_PROPERTIES,
     APPROVAL_DEADLINE_S,
     DEMO_SECONDARY_DELAY_S,
     SECONDARY_ONCALL,
@@ -36,11 +40,12 @@ from incident_commander.evaluate import (
 from incident_commander.fixtures.alerts import ALERTS
 from incident_commander.fixtures.golden import GOLDEN_ALERTS, GOLDEN_SERVICES
 from incident_commander.fixtures.runbooks import RUNBOOKS
-from incident_commander.fixtures.services import SERVICES, ServiceSpec
+from incident_commander.fixtures.services import REMEDIATION_EFFECTS, SERVICES, ServiceSpec
 from incident_commander.postmortem import OutboxNotifier, render
+from incident_commander.predicates import PREDICATES
 from incident_commander.report import case_decision_lines
 from incident_commander.retrieval import HybridRanker
-from incident_commander.types import Alert, TraceEvent
+from incident_commander.types import Alert, Runbook, TraceEvent
 from incident_commander.world import SimWorld
 
 from .charts import build_chart, diff_runs
@@ -51,9 +56,11 @@ from .schema import (
     INTAKE_SEVERITY,
     MAX_INTAKE,
     MAX_UPLOADS,
+    PREDICATE_HELP,
     Upload,
     ValidationError,
     validate_alertmanager,
+    validate_runbooks,
     validate_upload,
 )
 from .store import Store
@@ -61,6 +68,7 @@ from .world import HubWorld
 
 MAX_CONCURRENT_RUNS = 2
 MAX_STORED_RUNS = 50
+MAX_RUNBOOK_SETS = 5
 MAX_RUN_EVENTS = 500  # live trace events kept per run; a run emits about 25
 WEB_DEFAULT_DEADLINE_S = 20.0
 STALE_DEPLOYMENTS_LAG_S = 900.0  # same lag as the ic_plus stale_data scenario
@@ -118,8 +126,12 @@ class Run:
         self.commander: Commander | None = None
         self.started = time.monotonic()
         self.ended: float | None = None
+        self.runbooks: tuple[Runbook, ...] | None = None  # None: the built-in corpus
         self._events: list[dict[str, object]] = []
         self._events_lock = threading.Lock()
+
+    def runbook_map(self) -> dict[str, Runbook] | None:
+        return None if self.runbooks is None else {r.runbook_id: r for r in self.runbooks}
 
     def add_event(self, event: TraceEvent) -> None:
         """The Commander's on_event observer: runs on the run thread, only appends a copy."""
@@ -167,6 +179,8 @@ class Hub:
         self._intake: dict[str, dict[str, object]] = {}
         self._counts: dict[str, int] = {"incident_runs_started": 0}
         self._approvals: dict[str, int] = {}
+        # set id -> (runbooks, SHA-256 of their canonical JSON); held in memory like uploads
+        self._runbook_sets: OrderedDict[str, tuple[tuple[Runbook, ...], str]] = OrderedDict()
 
     # -- uploads and alerts -------------------------------------------------
 
@@ -180,6 +194,40 @@ class Hub:
             self._uploads.append(upload)
         self._audit("upload_added", alert_id=upload.alert.alert_id, service=upload.service.name)
         return upload
+
+    # -- runbook sets -------------------------------------------------------
+
+    def add_runbooks(self, raw: object) -> dict[str, object]:
+        """Validate a runbook set and keep it (the oldest of MAX_RUNBOOK_SETS is dropped)."""
+        books = validate_runbooks(raw)
+        digest = hashlib.sha256(
+            json.dumps([dataclasses.asdict(b) for b in books], sort_keys=True).encode()
+        ).hexdigest()
+        with self._lock:
+            effect_actions = {action for _, action in REMEDIATION_EFFECTS}
+            effect_actions |= {action for u in self._uploads for action in u.effects}
+            set_id = secrets.token_hex(8)
+            self._runbook_sets[set_id] = (books, digest)
+            while len(self._runbook_sets) > MAX_RUNBOOK_SETS:
+                self._runbook_sets.popitem(last=False)
+        warnings = [
+            f"{b.runbook_id}: no service has a remediation effect for {b.action}, "
+            "so verification would reopen the case"
+            for b in books
+            if b.action not in effect_actions
+        ]
+        self._audit("runbooks_added", set_id=set_id, sha256=digest, count=len(books))
+        return {"set_id": set_id, "sha256": digest, "warnings": warnings}
+
+    def runbook_set(self, set_id: object) -> tuple[tuple[Runbook, ...], str] | None:
+        """The stored set for a run request, None for the built-in corpus; unknown ids are an error."""
+        if set_id is None:
+            return None
+        with self._lock:
+            found = self._runbook_sets.get(str(set_id))
+        if found is None:
+            raise ValidationError({"runbook_set": "unknown or expired runbook set"})
+        return found
 
     def add_intake(self, raw: object) -> list[dict[str, str]]:
         """Alertmanager webhook -> alerts on services the hub already holds.
@@ -298,6 +346,8 @@ class Hub:
             secrets.token_hex(8), "playground" if playground else "run", str(req["alert_id"]), mode
         )
         uploads = self.uploads()
+        chosen = self.runbook_set(req.get("runbook_set"))
+        run.runbooks = chosen[0] if chosen else None
         self._admit(run)
         requested = req.get("deadline_s")
         if isinstance(requested, (int, float)):
@@ -314,6 +364,7 @@ class Hub:
                 mode=mode,
                 fix_outcome=req["fix_outcome"],
                 what_if=",".join(str(x) for x in req.get("what_if") or ()),  # type: ignore[attr-defined]
+                runbooks=chosen[1] if chosen else "builtin",
             )
         thread = threading.Thread(
             target=self._execute, args=(run, uploads, req, deadline), daemon=True
@@ -408,7 +459,7 @@ class Hub:
             responder = ScriptedResponder({})
         else:  # the graded wiring: priya never answers, devon approves after paging
             responder = ScriptedResponder({SECONDARY_ONCALL: (DEMO_SECONDARY_DELAY_S, "approve")})
-        ranker = HybridRanker(tuple(RUNBOOKS.values()))
+        ranker = HybridRanker(run.runbooks or tuple(RUNBOOKS.values()))
         return Commander(world, ranker, responder, deadline_s=deadline_s)  # type: ignore[arg-type]
 
     def _execute(
@@ -435,6 +486,7 @@ class Hub:
                 case = commander.run(
                     world.alert(run.alert_id),
                     fix_outcome=str(req["fix_outcome"]),
+                    runbooks=run.runbook_map(),
                     on_event=run.add_event,
                 )
                 run.case, run.commander = case, commander
@@ -526,7 +578,11 @@ class Hub:
         for label, planted in (("clean", None), ("planted", {service: (text,)})):
             world = HubWorld(uploads, planted)
             commander = self._commander(world, run, "scripted", deadline_s)
-            case = commander.run(world.alert(alert_id), fix_outcome=str(req["fix_outcome"]))
+            case = commander.run(
+                world.alert(alert_id),
+                fix_outcome=str(req["fix_outcome"]),
+                runbooks=run.runbook_map(),
+            )
             lines[label] = list(case_decision_lines(case))
         return {
             "planted_service": service,
@@ -691,3 +747,28 @@ class Hub:
     @staticmethod
     def postmortem_json(draft: object) -> dict[str, object]:
         return dataclasses.asdict(draft)  # type: ignore[call-overload]
+
+
+def builtin_catalog() -> dict[str, object]:
+    """What the runbook editor offers: the built-in corpus, the nine predicates, the four actions."""
+    return {
+        "runbooks": [
+            {
+                **dataclasses.asdict(b),
+                "signature": list(b.signature),
+                "follow_ups": list(b.follow_ups),
+            }
+            for b in RUNBOOKS.values()
+        ],
+        "predicates": [
+            {"id": p, "tool": PREDICATES[p].tool, "help": PREDICATE_HELP[p]} for p in PREDICATES
+        ],
+        "actions": [
+            {
+                "id": a,
+                "tier": classify_remediation(a).tier,
+                "requires_approval": classify_remediation(a).requires_approval,
+            }
+            for a in ACTION_PROPERTIES
+        ],
+    }

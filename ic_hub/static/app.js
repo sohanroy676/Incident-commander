@@ -7,6 +7,7 @@ const REPLAY_MS = 250;
 const POLL_MS = 200;
 
 let currentRun = null;
+let runbookSet = null; // id of the last accepted runbook set
 let liveSeq = 0; // highest trace event already drawn from the stream
 let lastAlert = null;
 let replayTimer = null;
@@ -102,6 +103,7 @@ function runRequest(alertId) {
   if ($("wi-stale").checked) whatIf.push("stale_deployments");
   if ($("wi-tool").checked) whatIf.push("tool_failure");
   if (whatIf.length) request.what_if = whatIf;
+  if ($("rb-use").checked && runbookSet) request.runbook_set = runbookSet;
   return request;
 }
 
@@ -545,6 +547,33 @@ $("upload-btn").addEventListener("click", async () => {
   }
 });
 
+async function loadCatalog(fillEditor) {
+  const { ok, data } = await api("GET", "/api/runbooks/builtin");
+  if (!ok) return;
+  if (fillEditor) $("rb-json").value = JSON.stringify({ runbooks: data.runbooks }, null, 2);
+  $("rb-predicates").replaceChildren();
+  for (const p of data.predicates) textItem($("rb-predicates"), `${p.id} (${p.tool}): ${p.help}`);
+  $("rb-actions").replaceChildren();
+  for (const a of data.actions) {
+    textItem($("rb-actions"), `${a.id}: ${a.tier} tier, ${a.requires_approval ? "needs approval" : "no approval"}`);
+  }
+}
+
+$("rb-load").addEventListener("click", () => loadCatalog(true));
+
+$("rb-btn").addEventListener("click", async () => {
+  $("rb-ok").textContent = "";
+  $("rb-warnings").replaceChildren();
+  const reply = await submitJson($("rb-json"), $("rb-errors"), "/api/runbooks");
+  if (reply && reply.ok) {
+    runbookSet = reply.data.set_id;
+    $("rb-use").disabled = false;
+    $("rb-use").checked = true;
+    $("rb-ok").textContent = `Runbook set ${reply.data.sha256.slice(0, 12)} is in use for the next runs.`;
+    for (const warning of reply.data.warnings) textItem($("rb-warnings"), warning);
+  }
+});
+
 $("am-btn").addEventListener("click", async () => {
   $("am-ok").textContent = "";
   const reply = await submitJson($("am-json"), $("am-errors"), "/api/intake/alertmanager");
@@ -618,6 +647,7 @@ $("upload").value = JSON.stringify(
   2,
 );
 
+loadCatalog(true);
 $("am-json").value = JSON.stringify(
   {
     version: "4",

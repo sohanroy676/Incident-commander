@@ -4,6 +4,7 @@ server, the hosted-mode confirmation, and proof that no key or endpoint choice r
 import json
 import unittest
 
+from ic_hub.runner import Run
 from ic_plus.explainer import AI_LABEL, FALLBACK_LABEL
 from ic_plus.llm_client import LLMClient
 from incident_commander.config import APPROVAL_DEADLINE_S
@@ -169,9 +170,10 @@ class TestEvaluate(HubTestCase):
     def test_off_matches_the_graded_evaluation_it_calls(self) -> None:
         result = self.evaluate(llm="off")
         hub = self.server.hub
+        stand_in = Run("0" * 16, "evaluate", "", "off")  # the built-in runbooks, no responder
 
         def factory(world):
-            return hub._commander(world, None, "scripted", APPROVAL_DEADLINE_S)  # type: ignore[arg-type]
+            return hub._commander(world, stand_in, "scripted", APPROVAL_DEADLINE_S)  # type: ignore[arg-type]
 
         direct = run_golden(factory)
         self.assertEqual(result["golden_passed"], sum(g.passed for g in direct))

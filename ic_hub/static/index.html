@@ -49,6 +49,7 @@
         <label class="inline"><input type="checkbox" id="wi-stale"> deployments data is stale</label>
         <label class="inline"><input type="checkbox" id="wi-tool"> error-rate backend is down</label>
       </fieldset>
+      <label class="inline"><input type="checkbox" id="rb-use" disabled> use my runbook set</label>
     </div>
     <p id="run-error" class="error" role="alert"></p>
   </section>
@@ -158,6 +159,18 @@
     <button id="am-btn" type="button">Validate and add</button>
     <ul id="am-errors" class="error" role="alert"></ul>
     <p id="am-ok" aria-live="polite"></p>
+  </section>
+
+  <section aria-labelledby="h-rb">
+    <h2 id="h-rb">Runbook editor</h2>
+    <p class="note">A runbook matches when every predicate in its signature is true on fresh evidence. Its text is only used to rank candidates and never decides. The approval tier comes from the action alone, so a custom runbook cannot lower it. Pick the set with the checkbox next to Run.</p>
+    <button id="rb-load" type="button">Load built-in runbooks</button>
+    <textarea id="rb-json" rows="16" spellcheck="false" aria-label="Runbook set JSON"></textarea>
+    <button id="rb-btn" type="button">Validate and use</button>
+    <ul id="rb-errors" class="error" role="alert"></ul>
+    <ul id="rb-warnings" class="note"></ul>
+    <p id="rb-ok" aria-live="polite"></p>
+    <div class="cols"><div><h3>Predicates</h3><ul id="rb-predicates"></ul></div><div><h3>Actions</h3><ul id="rb-actions"></ul></div></div>
   </section>
 
   <section aria-labelledby="h-upload">

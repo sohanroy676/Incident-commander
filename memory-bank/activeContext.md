@@ -60,3 +60,6 @@ Done: `docs/media/hero.gif` via `python scripts/record_hero_gif.py` (needs playw
 
 ## v3.0 core (2026-10-21)
 P1 and P3 approved. `incident_commander/` is no longer frozen, but only `commander.py` may change (ADR-0005). The graded code is on `origin/submission`. After merging `v3.0-core`, tag `v3.0` (ask first): X1 then requires an empty core diff against that tag. Next: hub using `on_event` and `runbooks=` (live progress, runbook editor item 38). Ask before pushing, tagging or deleting branches.
+
+## v3.1 hub (2026-10-21)
+Branches `v3.1-live-progress` (committed c1133c6) and `v3.1-runbook-editor` (stacked on it) are ready for review; nothing merged, pushed or tagged. Core is untouched (`git diff v3.0 -- incident_commander/` empty). Gotchas: a heredoc-written Python string with backslash escapes corrupts source (use a script file written with the Write tool); PUT on a known route is 405 not 404; a failed validation POST logs a 422 console error in the browser (expected). Next: merge both with --no-ff after review, tag v3.1 only on approval, then optional item 39/40 (need P5).
