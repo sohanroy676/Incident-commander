@@ -207,8 +207,9 @@ trace for the report. Do not edit a trace by hand.
 
 ## What comes next
 
-The hub extras (v2.3: charts, what-if toggles, evaluate view, run history, audit log, Alertmanager-shaped intake) and the
-pluggable core (v3.0, which needs a separate unfreeze approval) are proposed in
+The v2.3 hub extras (charts, what-if toggles, evaluate view, run history, audit log, Alertmanager-shaped intake, metrics strip,
+approval stream, dark mode and shortcuts) are built; a dev-only browser check is `python scripts/playwright_smoke.py`
+(needs `pip install playwright` and `playwright install chromium`, not in CI). The pluggable core (v3.0, which needs a separate unfreeze approval) is proposed in
 [`docs/EXTENSION_PLAN.md`](docs/EXTENSION_PLAN.md) and [`ROADMAP.md`](ROADMAP.md). Until v3.0 is approved the graded package stays frozen at `v1.0`.
 
 ## Extended build (`ic_plus`, optional)
