@@ -60,8 +60,9 @@ class TestIsolation(unittest.TestCase):
             )
             return probe.returncode == 0
 
+        v33 = tag_exists("v3.3")
         v3 = tag_exists("v3.0")
-        baseline = "v3.0" if v3 else "v2.3"
+        baseline = "v3.3" if v33 else "v3.0" if v3 else "v2.3"
         if not tag_exists(baseline):
             self.skipTest(f"tag {baseline} is not available (shallow clone)")
         diff = subprocess.run(
@@ -71,8 +72,14 @@ class TestIsolation(unittest.TestCase):
             capture_output=True,
             text=True,
         )
-        # v3.0 (P1) may touch commander.py only; v1.0 to v2.3 was empty and X1 checks that too.
-        allowed = set() if v3 else {"incident_commander/commander.py"}
+        # v3.3 (P5) may touch predicates.py only until it is tagged; v3.0 (P1) commander.py only.
+        allowed = (
+            set()
+            if v33
+            else {"incident_commander/predicates.py"}
+            if v3
+            else {"incident_commander/commander.py"}
+        )
         self.assertLessEqual(set(diff.stdout.split()), allowed)
 
 
