@@ -123,7 +123,7 @@ class _Handler(BaseHTTPRequestHandler):
         self.send_header("Cache-Control", "no-store")
 
     def _stream(self, run: Run) -> None:
-        """Server-sent events with the run's status and pending approval, until it ends.
+        """Server-sent events with the run's status, pending approval and live trace, until it ends.
 
         Same guards as every /api route (the page reads it with fetch so the token header applies).
         Bounded: a cap on open streams, a lifetime, and a write that fails ends the thread.
@@ -139,11 +139,16 @@ class _Handler(BaseHTTPRequestHandler):
             self.close_connection = True
             deadline = time.monotonic() + STREAM_MAX_S
             last = None
+            last_seq = 0
             last_sent = time.monotonic()
             while True:
                 view = run.stream_view()
+                fresh = run.events_after(last_seq)  # read after the status: none are missed
                 text = json.dumps(view, allow_nan=False)
                 now = time.monotonic()
+                if fresh:
+                    self.wfile.write(_sse(json.dumps(fresh, allow_nan=False), "trace"))
+                    last_seq, last_sent = int(fresh[-1]["seq"]), now  # type: ignore[call-overload]
                 if text != last:
                     self.wfile.write(_sse(text))
                     last, last_sent = text, now

@@ -7,6 +7,7 @@ const REPLAY_MS = 250;
 const POLL_MS = 200;
 
 let currentRun = null;
+let liveSeq = 0; // highest trace event already drawn from the stream
 let lastAlert = null;
 let replayTimer = null;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -158,6 +159,7 @@ function handleStreamBlock(runId, block) {
   if (!data || block.startsWith("event: end")) return;
   try {
     const view = JSON.parse(data);
+    if (block.startsWith("event: trace")) return showLiveEvents(runId, view);
     if (view.status === "running") showApproval(runId, view.pending);
   } catch (error) {
     // a damaged event is skipped; the next fetch of the run is the source of truth
@@ -198,8 +200,18 @@ function showApproval(runId, pending) {
   $("deny").onclick = () => answer("deny");
 }
 
+function showLiveEvents(runId, events) {
+  if (runId !== currentRun || !Array.isArray(events)) return;
+  for (const event of events) {
+    if (event.seq <= liveSeq) continue;
+    appendEvent($("trace"), event);
+    liveSeq = event.seq;
+  }
+}
+
 function clearReplay() {
   clearTimeout(replayTimer);
+  liveSeq = 0;
   $("trace").replaceChildren();
   $("decisions").textContent = "";
   $("skip").hidden = true;
@@ -220,7 +232,7 @@ function showResult(result) {
   loadHistory();
   loadMetrics();
   const list = $("trace");
-  let i = 0;
+  let i = result.trace.filter((e) => e.seq <= liveSeq).length; // already drawn live
   const finish = () => {
     clearTimeout(replayTimer);
     for (; i < result.trace.length; i++) appendEvent(list, result.trace[i]);
