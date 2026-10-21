@@ -289,3 +289,11 @@ It makes no decision: it builds a world, picks a responder, calls the frozen `Co
 - `POST /api/runbooks` keeps the set in memory (the newest 5, `MAX_RUNBOOK_SETS`) and returns `set_id`, its SHA-256 and warnings. A run request may carry `runbook_set`; an unknown or expired id is a 422 before the run starts. The ranker is rebuilt from the chosen set for each run, so ranker and runbook ids always match (a mismatch would raise `ValueError` in the investigator). `GET /api/runbooks/builtin` gives the built-in corpus, the predicates with one-line help and the actions with their tier.
 - Warning, not an error: an action that no service has a remediation effect for (today `scale_out_service`) is accepted, because verification then reopens the case and hands off, which is a safe outcome. The page shows the warning.
 - The audit log records `runbooks_added` (set id, hash, count; never the text) and `run_started` carries the set hash or `builtin`. Sets are not stored in `--data-dir`.
+
+## Choices that go beyond PHASE5 (v3.2, scenario generator)
+
+- `ic_plus/generator.py` builds worlds from `flat`, `step` and `ramp` with parameters from `random.Random(seed)`: same seed, same worlds. Nothing random happens at run time, so this is not fault injection.
+- Five classes, cycled in order: deploy regression (RB-101), memory leak (RB-102), dependency down (RB-103), config errors (RB-104) and no fault (none). The class is the label by construction; `generate` prints a confusion matrix of label against the runbook the graded pipeline picked, and exits 1 on any mismatch.
+- Severity is drawn at random too, and a test relabels it: a decision that read severity would show up as a mismatch.
+- Magnitudes are well past the thresholds in `config.py`, so this checks consistency on authored fixtures. It is not an accuracy figure and must not be quoted as one.
+- Generated alerts use ids ALRT-9500+ and days 20+ after T0, so they never collide with the demo or golden alerts. Command: `python -m ic_plus generate --seed N --count N` (1 to 200).
