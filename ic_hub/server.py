@@ -28,6 +28,7 @@ from .schema import (
     validate_explain_request,
     validate_run_request,
 )
+from .store import Store
 
 HOST = "127.0.0.1"
 STATIC_DIR = Path(__file__).resolve().parent / "static"
@@ -43,15 +44,21 @@ CSP = (
     "img-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
 )
 _RUN_ID = re.compile(r"^[0-9a-f]{16}$")
+_HISTORY_PATH = re.compile(r"^/api/history/([0-9a-f]{16})$")
 _RUN_PATH = re.compile(r"^/api/runs/([0-9a-f]{16})(?:/([a-z.]+))?$")
 
 
 class HubServer(ThreadingHTTPServer):
     daemon_threads = True
 
-    def __init__(self, port: int = 0, client_factory: ClientFactory | None = None) -> None:
+    def __init__(
+        self,
+        port: int = 0,
+        client_factory: ClientFactory | None = None,
+        store: Store | None = None,
+    ) -> None:
         super().__init__((HOST, port), _Handler)
-        self.hub = Hub(client_factory) if client_factory else Hub()
+        self.hub = Hub(client_factory, store) if client_factory else Hub(store=store)
         self.token = secrets.token_urlsafe(24)
         self.allowed_hosts = frozenset({f"127.0.0.1:{self.port}", f"localhost:{self.port}"})
         self.allowed_origins = frozenset(f"http://{h}" for h in self.allowed_hosts)
@@ -194,6 +201,12 @@ class _Handler(BaseHTTPRequestHandler):
             if playground and not req["text"]:
                 raise ValidationError({"text": "is required"})
             self._json(202, {"run_id": hub.start(req, playground=playground).run_id})
+        elif method == "GET" and path == "/api/history":
+            self._json(200, hub.history())
+        elif method == "GET" and path == "/api/audit":
+            self._json(200, hub.audit())
+        elif method == "GET" and _HISTORY_PATH.match(path):
+            self._json(200, hub.history_get(_HISTORY_PATH.match(path).group(1)))  # type: ignore[union-attr]
         elif method == "POST" and path == "/api/explain":
             body = self._body()
             if body is None:
@@ -236,11 +249,17 @@ class _Handler(BaseHTTPRequestHandler):
                 return
             outcome = hub.approve(run_id, body.get("nonce"), body.get("decision"))
             self._json(200 if outcome == "accepted" else 409, {"outcome": outcome})
+        elif method == "GET" and action == "similar":
+            self._json(200, hub.similar(run_id))
         elif method == "POST" and action == "publish":
             self._json(200, hub.publish(run_id))
         else:
             self._error(404, "not found")
 
 
-def make_server(port: int = 0, client_factory: ClientFactory | None = None) -> HubServer:
-    return HubServer(port, client_factory)
+def make_server(
+    port: int = 0,
+    client_factory: ClientFactory | None = None,
+    store: Store | None = None,
+) -> HubServer:
+    return HubServer(port, client_factory, store)

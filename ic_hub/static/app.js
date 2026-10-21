@@ -130,6 +130,8 @@ function showResult(result) {
   $("run-status").textContent = `Replaying the finished trace. Final state: ${result.state}`;
   renderChart(result.chart);
   rememberRun(currentRun);
+  loadSimilar(currentRun);
+  loadHistory();
   const list = $("trace");
   let i = 0;
   const finish = () => {
@@ -149,6 +151,73 @@ function showResult(result) {
   };
   step();
 }
+
+function textItem(list, text) {
+  const li = document.createElement("li");
+  li.textContent = text;
+  list.appendChild(li);
+}
+
+async function loadHistory() {
+  const { data } = await api("GET", "/api/history");
+  $("history-off").hidden = data.enabled;
+  $("history-on").hidden = !data.enabled;
+  if (!data.enabled) return;
+  $("history-error").textContent = data.write_error || "";
+  const body = document.querySelector("#history tbody");
+  body.replaceChildren();
+  for (const r of data.runs) {
+    const row = document.createElement("tr");
+    cell(row, r.run_id);
+    cell(row, r.alert_id);
+    cell(row, r.service);
+    cell(row, r.state);
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = "View";
+    button.addEventListener("click", () => viewStored(r.run_id));
+    cell(row, "").appendChild(button);
+    body.appendChild(row);
+  }
+}
+
+async function viewStored(runId) {
+  const { ok, data } = await api("GET", `/api/history/${runId}`);
+  if (!ok) {
+    $("history-error").textContent = describe(data);
+    return;
+  }
+  clearReplay();
+  currentRun = null;
+  const result = data.result;
+  for (const event of result.trace) appendEvent($("trace"), event);
+  $("decisions").textContent = result.decision_lines.join("\n");
+  $("postmortem").textContent = result.postmortem || "No draft.";
+  renderChart(result.chart);
+  $("run-status").textContent = `Stored run ${runId}: ${result.state} (read only).`;
+  loadSimilar(runId);
+}
+
+async function loadSimilar(runId) {
+  const list = $("similar");
+  list.replaceChildren();
+  if (!runId) return;
+  const { ok, data } = await api("GET", `/api/runs/${runId}/similar`);
+  if (!ok || !data.enabled) return;
+  if (!data.runs.length) textItem(list, "None yet.");
+  for (const r of data.runs) textItem(list, `${r.run_id} ${r.alert_id} on ${r.service}: ${r.state} (${r.reason})`);
+}
+
+$("audit-btn").addEventListener("click", async () => {
+  const { data } = await api("GET", "/api/audit");
+  const v = data.verify;
+  $("audit-status").textContent = v.ok
+    ? `Chain intact: ${v.entries} entries. ${v.note}`
+    : `CHAIN BROKEN at line ${v.first_bad_line}: ${v.reason}`;
+  $("audit-out").textContent = data.entries
+    .map((e) => `#${e.seq} ${e.event} ${Object.entries(e.detail).map(([k, x]) => `${k}=${x}`).join(" ")}`)
+    .join("\n");
+});
 
 function svgEl(name, attrs, text) {
   const node = document.createElementNS(SVG_NS, name);
@@ -397,3 +466,4 @@ $("upload").value = JSON.stringify(
 );
 
 loadAlerts();
+loadHistory();
