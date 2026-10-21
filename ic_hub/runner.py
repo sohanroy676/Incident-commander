@@ -61,6 +61,7 @@ from .world import HubWorld
 
 MAX_CONCURRENT_RUNS = 2
 MAX_STORED_RUNS = 50
+MAX_RUN_EVENTS = 500  # live trace events kept per run; a run emits about 25
 WEB_DEFAULT_DEADLINE_S = 20.0
 STALE_DEPLOYMENTS_LAG_S = 900.0  # same lag as the ic_plus stale_data scenario
 
@@ -117,6 +118,19 @@ class Run:
         self.commander: Commander | None = None
         self.started = time.monotonic()
         self.ended: float | None = None
+        self._events: list[dict[str, object]] = []
+        self._events_lock = threading.Lock()
+
+    def add_event(self, event: TraceEvent) -> None:
+        """The Commander's on_event observer: runs on the run thread, only appends a copy."""
+        with self._events_lock:
+            if len(self._events) < MAX_RUN_EVENTS:
+                self._events.append(event_json(event))
+
+    def events_after(self, seq: int) -> list[dict[str, object]]:
+        """Live events with a sequence number above `seq`, oldest first (a snapshot copy)."""
+        with self._events_lock:
+            return [e for e in self._events if int(e["seq"]) > seq]  # type: ignore[call-overload]
 
     def stream_view(self) -> dict[str, object]:
         """The small, changing part of the view: what the approval stream sends."""
@@ -418,7 +432,11 @@ class Hub:
                     else None,
                 )
                 commander = self._commander(world, run, run.mode, deadline_s)
-                case = commander.run(world.alert(run.alert_id), fix_outcome=str(req["fix_outcome"]))
+                case = commander.run(
+                    world.alert(run.alert_id),
+                    fix_outcome=str(req["fix_outcome"]),
+                    on_event=run.add_event,
+                )
                 run.case, run.commander = case, commander
                 run.result = {**self._summary(case), "chart": build_chart(world, case)}
                 self._persist(run, req)

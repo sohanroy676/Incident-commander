@@ -10,7 +10,9 @@ from pathlib import Path
 from unittest import mock
 
 from ic_hub import server as hub_server
+from ic_hub.runner import MAX_RUN_EVENTS, Run
 from ic_hub.server import MAX_STREAMS, STATIC_DIR
+from incident_commander.types import TraceEvent
 
 from .support import HubTestCase
 from .test_intake import PATH, alert, payload
@@ -119,6 +121,48 @@ class TestStream(HubTestCase):
         for event, data in stream.blocks():
             if event == "message":
                 self.assertEqual(set(json.loads(data)), {"status", "pending", "error"})
+
+    def test_stream_sends_the_live_trace_in_order_and_it_matches_the_result(self) -> None:
+        run_id = self.start_run("ALRT-9001", mode="web", deadline_s=10)
+        stream = Stream(self, run_id)
+        self.addCleanup(stream.close)
+        live: list[dict] = []
+        approved = False
+        for event, data in stream.blocks():
+            if event == "trace":
+                live.extend(json.loads(data))
+            elif event == "message" and not approved:
+                view = json.loads(data)
+                if view["pending"]:
+                    # events arrive while the run still waits for the human
+                    self.assertTrue(any(e["kind"] == "PAGE" for e in live), live)
+                    reply = self.call(
+                        "POST",
+                        f"/api/runs/{run_id}/approval",
+                        {"nonce": view["pending"]["nonce"], "decision": "approve"},
+                    )
+                    self.assertEqual(reply.status, 200)
+                    approved = True
+        self.assertTrue(approved)
+        self.assertEqual([e["seq"] for e in live], list(range(1, len(live) + 1)))
+        final = self.wait_for(run_id)
+        self.assertEqual(live, final["result"]["trace"])
+
+    def test_live_events_never_carry_a_decision_the_result_lacks(self) -> None:
+        run_id = self.start_run("ALRT-9003")
+        stream = Stream(self, run_id)
+        self.addCleanup(stream.close)
+        live = [e for ev, d in stream.blocks() if ev == "trace" for e in json.loads(d)]
+        final = self.wait_for(run_id)
+        self.assertEqual(live, final["result"]["trace"])
+
+    def test_run_event_buffer_is_capped_and_filters_by_sequence(self) -> None:
+        run = Run("0" * 16, "run", "ALRT-9001", "scripted")
+        for i in range(MAX_RUN_EVENTS + 20):
+            run.add_event(TraceEvent(i + 1, "X", 0.0, 0.0, ()))
+        self.assertEqual(len(run.events_after(0)), MAX_RUN_EVENTS)
+        self.assertEqual([e["seq"] for e in run.events_after(MAX_RUN_EVENTS - 2)], [499, 500])
+        self.assertEqual(run.events_after(MAX_RUN_EVENTS), [])
 
     def test_a_nonce_read_from_the_stream_works_once(self) -> None:
         run_id = self.start_run("ALRT-9001", mode="web", deadline_s=10)
