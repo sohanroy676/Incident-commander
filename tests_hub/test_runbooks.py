@@ -59,6 +59,11 @@ class TestValidateRunbooks(unittest.TestCase):
     def test_catalog_help_covers_exactly_the_predicates(self) -> None:
         self.assertEqual(set(PREDICATE_HELP), set(PREDICATES))
 
+    def test_v3_3_predicates_are_usable_in_a_custom_signature(self) -> None:
+        sig = ["error_elevated", "error_step_change", "dependency_healthy"]
+        books = validate_runbooks(with_book(signature=sig))
+        self.assertEqual(books[0].signature, tuple(sig))
+
     def test_unknown_predicate_is_rejected(self) -> None:
         err = check(with_book(signature=["latency_elevated", "made_up"]))
         self.assertIn("runbooks[0].signature", err.fields)

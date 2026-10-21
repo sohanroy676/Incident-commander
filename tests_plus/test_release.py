@@ -51,9 +51,12 @@ def changed_core_files(baseline: str) -> set[str]:
 class TestReleaseGates(unittest.TestCase):
     @unittest.skipUnless(tag_exists("v2.3"), "tag v2.3 is not available (shallow clone)")
     def test_x1_graded_package_changes_only_in_the_v3_files(self):
-        # v3.0 (P1) may touch commander.py only; once tag v3.0 exists the diff against it must be empty.
-        if tag_exists("v3.0"):
-            self.assertEqual(changed_core_files("v3.0"), set())
+        # v3.3 (P5, ADR-0006) may touch predicates.py only; once tag v3.3 exists the diff against it
+        # must be empty. Until then v3.0 is the baseline (v3.0 itself: commander.py, ADR-0005).
+        if tag_exists("v3.3"):
+            self.assertEqual(changed_core_files("v3.3"), set())
+        elif tag_exists("v3.0"):
+            self.assertLessEqual(changed_core_files("v3.0"), {"incident_commander/predicates.py"})
         else:
             self.assertLessEqual(changed_core_files("v2.3"), {"incident_commander/commander.py"})
 

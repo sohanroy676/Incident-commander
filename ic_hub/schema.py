@@ -74,6 +74,9 @@ PREDICATE_HELP = {
     "deploy_in_window": "a deployment happened in the 30 minutes before the alert",
     "no_deploy_in_window": "no deployment in the 30 minutes before the alert",
     "dependency_unhealthy": "a dependency has elevated latency or errors",
+    "error_step_change": "error rate jumped in one step and was normal before",
+    "error_gradual_trend": "error rate climbs steadily with no single jump",
+    "dependency_healthy": "no dependency has elevated latency or errors",
 }
 
 BUILTIN_SERVICES = frozenset({*SERVICES, *GOLDEN_SERVICES})

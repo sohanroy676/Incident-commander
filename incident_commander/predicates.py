@@ -86,18 +86,34 @@ def _largest_jump(values: list[float]) -> tuple[int, float]:
     return best_i, best
 
 
-def latency_step_change(data, baseline, fired_at) -> Tri:
+def _step_change(data, baseline, normal_ratio: float) -> Tri:
     values = [v for _, v in data]
     if len(values) < 2 or not baseline:
         return Tri.UNKNOWN
     final = values[-1]
     i, jump = _largest_jump(values)
     big = final > 0 and jump >= STEP_FRACTION * final
-    quiet_before = all(v <= LATENCY_NORMAL_RATIO * baseline for v in values[:i])
+    quiet_before = all(v <= normal_ratio * baseline for v in values[:i])
     return _tri(big and quiet_before)
 
 
+def latency_step_change(data, baseline, fired_at) -> Tri:
+    return _step_change(data, baseline, LATENCY_NORMAL_RATIO)
+
+
+def error_step_change(data, baseline, fired_at) -> Tri:
+    return _step_change(data, baseline, ERROR_NORMAL_RATIO)
+
+
 def latency_gradual_trend(data, baseline, fired_at) -> Tri:
+    return _gradual_trend(data)
+
+
+def error_gradual_trend(data, baseline, fired_at) -> Tri:
+    return _gradual_trend(data)
+
+
+def _gradual_trend(data) -> Tri:
     values = [v for _, v in data]
     if len(values) < _MIN_TREND_POINTS:
         return Tri.UNKNOWN
@@ -131,6 +147,12 @@ def dependency_unhealthy(data, baseline, fired_at) -> Tri:
     )
 
 
+def dependency_healthy(data, baseline, fired_at) -> Tri:
+    return _tri(
+        not any(lat >= DEP_LATENCY_UNHEALTHY or err >= DEP_ERROR_UNHEALTHY for _, lat, err in data)
+    )
+
+
 @dataclass(frozen=True)
 class Predicate:
     tool: str
@@ -155,6 +177,10 @@ PREDICATES: dict[str, Predicate] = {
     "deploy_in_window": Predicate("get_deployments", deploy_in_window),
     "no_deploy_in_window": Predicate("get_deployments", no_deploy_in_window),
     "dependency_unhealthy": Predicate("get_dependencies", dependency_unhealthy),
+    # v3.3 (ADR-0006): no built-in runbook uses these; custom runbook sets can.
+    "error_step_change": Predicate("get_error_rate", error_step_change),
+    "error_gradual_trend": Predicate("get_error_rate", error_gradual_trend),
+    "dependency_healthy": Predicate("get_dependencies", dependency_healthy),
 }
 
 
