@@ -66,7 +66,7 @@ in `requirements-dev.txt`).
 
 | # | P | Item | Status |
 |---|---|---|---|
-| 1 | P0 | `LICENSE` (see P6) | plan, [PENDING] P6 |
+| 1 | P0 | `LICENSE` (see P6) | done: MIT, holder Sohan Roy Talari (P6 answered 2026-10-21) |
 | 2 | P0 | `pyproject.toml` with `incident-commander`, `ic-plus`, `ic-hub` console scripts. `requirements.txt` stays the single source of the scikit-learn pin (no duplicate pin); `tech-stack.md` line "no packaging" is amended | plan, [CHANGED] |
 | 3a | P0 | README structure: pitch, badges (CI, Python, license), "what makes it interesting" bullets. **No hero GIF yet** | [CHANGED] split from 3 |
 | 4 | P0 | `docs/ARCHITECTURE.md` and a user guide; the architecture diagram is **drawn new** (SVG under `docs/diagrams/`) | plan, [CHANGED] |

@@ -35,4 +35,4 @@ pytest, and never patch sleep or fake a clock. Timing asserts are lower bounds o
 
 ## Licensing
 
-No license has been chosen yet, so all rights are reserved until the owner adds one.
+The project is released under the MIT License (see `LICENSE`).
