@@ -3,6 +3,8 @@
 [![CI](https://github.com/sohanroy676/incident-commander/actions/workflows/ci.yml/badge.svg)](https://github.com/sohanroy676/incident-commander/actions/workflows/ci.yml)
 ![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)
 
+![Incident Commander hub: run, approve, decisions, evidence chart, dark mode, intake](docs/media/hero.gif)
+
 A deterministic incident-response agent over simulated production data (Sem VII Agentic AI course).
 It investigates alerts from real signals, gates risky fixes behind time-boxed human approval, verifies
 the fix, and drafts a postmortem. An optional LLM extension (`ic_plus`) never makes decisions, and a local
@@ -209,7 +211,7 @@ trace for the report. Do not edit a trace by hand.
 
 The v2.3 hub extras (charts, what-if toggles, evaluate view, run history, audit log, Alertmanager-shaped intake, metrics strip,
 approval stream, dark mode and shortcuts) are built; a dev-only browser check is `python scripts/playwright_smoke.py`
-(needs `pip install playwright` and `playwright install chromium`, not in CI). The pluggable core (v3.0, which needs a separate unfreeze approval) is proposed in
+(needs `pip install playwright` and `playwright install chromium`, not in CI). The hero GIF is regenerated with `python scripts/record_hero_gif.py` (also needs `pip install pillow`). The pluggable core (v3.0, which needs a separate unfreeze approval) is proposed in
 [`docs/EXTENSION_PLAN.md`](docs/EXTENSION_PLAN.md) and [`ROADMAP.md`](ROADMAP.md). Until v3.0 is approved the graded package stays frozen at `v1.0`.
 
 ## Extended build (`ic_plus`, optional)
