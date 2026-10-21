@@ -45,30 +45,30 @@ RB-103           4         4    0.031250
 top2_margin=0.000529   (small margin: retrieval cannot separate the top candidates)
 == M3 INVESTIGATION ==
 alert=ALRT-9001
-[t+2.19s] ROUND n=1 tool=get_latency mode=coverage fresh=True latency_elevated=TRUE latency_step_change=TRUE latency_gradual_trend=FALSE latency_normal=FALSE
-[t+2.19s] HYPOTHESES RB-101=open RB-102=refuted RB-103=open RB-104=refuted
-[t+2.19s] ROUND n=2 tool=get_error_rate mode=coverage fresh=True error_normal=TRUE error_elevated=FALSE
-[t+2.19s] HYPOTHESES RB-101=open RB-102=refuted RB-103=refuted RB-104=refuted
-[t+2.19s] ROUND n=3 tool=get_deployments mode=coverage fresh=True deploy_in_window=TRUE
-[t+2.19s] HYPOTHESES RB-101=confirmed RB-102=refuted RB-103=refuted RB-104=refuted
+[t+2.33s] ROUND n=1 tool=get_latency mode=coverage fresh=True latency_elevated=TRUE latency_step_change=TRUE latency_gradual_trend=FALSE latency_normal=FALSE
+[t+2.33s] HYPOTHESES RB-101=open RB-102=refuted RB-103=open RB-104=refuted
+[t+2.33s] ROUND n=2 tool=get_error_rate mode=coverage fresh=True error_normal=TRUE error_elevated=FALSE
+[t+2.33s] HYPOTHESES RB-101=open RB-102=refuted RB-103=refuted RB-104=refuted
+[t+2.33s] ROUND n=3 tool=get_deployments mode=coverage fresh=True deploy_in_window=TRUE
+[t+2.33s] HYPOTHESES RB-101=confirmed RB-102=refuted RB-103=refuted RB-104=refuted
 DECISION verdict alert=ALRT-9001 verdict=matched runbook=RB-101 rounds=3
 alert=ALRT-9002
-[t+2.62s] ROUND n=1 tool=get_latency mode=coverage fresh=True latency_elevated=TRUE latency_step_change=FALSE latency_gradual_trend=TRUE latency_normal=FALSE
-[t+2.62s] HYPOTHESES RB-101=refuted RB-102=open RB-103=open RB-104=refuted
-[t+2.62s] ROUND n=2 tool=get_error_rate mode=coverage fresh=True error_normal=TRUE error_elevated=FALSE
-[t+2.62s] HYPOTHESES RB-101=refuted RB-102=open RB-103=refuted RB-104=refuted
-[t+2.62s] ROUND n=3 tool=get_deployments mode=coverage fresh=True no_deploy_in_window=TRUE
-[t+2.62s] HYPOTHESES RB-101=refuted RB-102=confirmed RB-103=refuted RB-104=refuted
+[t+2.76s] ROUND n=1 tool=get_latency mode=coverage fresh=True latency_elevated=TRUE latency_step_change=FALSE latency_gradual_trend=TRUE latency_normal=FALSE
+[t+2.76s] HYPOTHESES RB-101=refuted RB-102=open RB-103=open RB-104=refuted
+[t+2.76s] ROUND n=2 tool=get_error_rate mode=coverage fresh=True error_normal=TRUE error_elevated=FALSE
+[t+2.76s] HYPOTHESES RB-101=refuted RB-102=open RB-103=refuted RB-104=refuted
+[t+2.76s] ROUND n=3 tool=get_deployments mode=coverage fresh=True no_deploy_in_window=TRUE
+[t+2.76s] HYPOTHESES RB-101=refuted RB-102=confirmed RB-103=refuted RB-104=refuted
 DECISION verdict alert=ALRT-9002 verdict=matched runbook=RB-102 rounds=3
 alert=ALRT-9003
-[t+2.62s] ROUND n=1 tool=get_latency mode=coverage fresh=True latency_elevated=FALSE latency_step_change=FALSE latency_gradual_trend=FALSE latency_normal=TRUE
-[t+2.62s] HYPOTHESES RB-101=refuted RB-102=refuted RB-103=refuted RB-104=open
-[t+2.62s] ROUND n=2 tool=get_error_rate mode=coverage fresh=True error_elevated=TRUE
-[t+2.62s] HYPOTHESES RB-101=refuted RB-102=refuted RB-103=refuted RB-104=open
-[t+2.62s] ROUND n=3 tool=get_deployments mode=coverage fresh=True deploy_in_window=FALSE
-[t+2.62s] HYPOTHESES RB-101=refuted RB-102=refuted RB-103=refuted RB-104=refuted
-[t+2.62s] ROUND n=4 tool=get_dependencies mode=exploratory fresh=True dependency_unhealthy=FALSE
-[t+2.62s] HYPOTHESES RB-101=refuted RB-102=refuted RB-103=refuted RB-104=refuted
+[t+2.76s] ROUND n=1 tool=get_latency mode=coverage fresh=True latency_elevated=FALSE latency_step_change=FALSE latency_gradual_trend=FALSE latency_normal=TRUE
+[t+2.76s] HYPOTHESES RB-101=refuted RB-102=refuted RB-103=refuted RB-104=open
+[t+2.76s] ROUND n=2 tool=get_error_rate mode=coverage fresh=True error_elevated=TRUE
+[t+2.76s] HYPOTHESES RB-101=refuted RB-102=refuted RB-103=refuted RB-104=open
+[t+2.76s] ROUND n=3 tool=get_deployments mode=coverage fresh=True deploy_in_window=FALSE
+[t+2.76s] HYPOTHESES RB-101=refuted RB-102=refuted RB-103=refuted RB-104=refuted
+[t+2.76s] ROUND n=4 tool=get_dependencies mode=exploratory fresh=True dependency_unhealthy=FALSE dependency_healthy=TRUE
+[t+2.76s] HYPOTHESES RB-101=refuted RB-102=refuted RB-103=refuted RB-104=refuted
 DECISION verdict alert=ALRT-9003 verdict=no_confident_match runbook=none rounds=4 reason=all_refuted
 == M4 BLAST-RADIUS CLASSIFICATION ==
 DECISION classify alert=ALRT-9001 severity_label=high action=rollback_deployment tier=high requires_approval=True
@@ -79,8 +79,8 @@ DECISION page_check case=immediate window_s=0.3 escalated=False
 [t+0.00s] SLEEP real_seconds=0.4
 DECISION page_check case=after_sleep window_s=0.3 escalated=True from=engineer-priya to=engineer-devon
 DECISION page_check case=answered_in_time escalated=False reason="already resolved"
-[t+2.19s] PAGE target=engineer-priya deadline_s=0.3
-[t+2.62s] ESCALATE from=engineer-priya to=engineer-devon
+[t+2.33s] PAGE target=engineer-priya deadline_s=0.3
+[t+2.76s] ESCALATE from=engineer-priya to=engineer-devon
 DECISION approval alert=ALRT-9001 escalated=True approved_by=engineer-devon
 == M6 VERIFIED RESOLUTION ==
 DECISION execute alert=ALRT-9001 action=rollback_deployment status=executed execution_id=exec-03f8336582
@@ -98,7 +98,7 @@ DECISION postmortem alert=ALRT-9002 notified=[] published=False
 alert=ALRT-9002 timeline_events=18 log_excerpts=24
 DECISION postmortem alert=ALRT-9003 notified=[] published=False
 alert=ALRT-9003 timeline_events=15 log_excerpts=24
-[t+3.14s] PUBLISH alert=ALRT-9001 published=True notified=['oncall-channel']
+[t+3.30s] PUBLISH alert=ALRT-9001 published=True notified=['oncall-channel']
 DECISION publish alert=ALRT-9001 published=True notified=['oncall-channel']
 == M8 EVALUATION ==
 DECISION golden id=G-1 verdict=matched runbook=RB-101 action=rollback_deployment pass=True
