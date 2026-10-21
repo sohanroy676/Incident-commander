@@ -12,13 +12,15 @@ import hmac
 import json
 import re
 import secrets
+import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit
 
 from incident_commander.postmortem import render
 
-from .runner import ClientFactory, Conflict, Hub, NotFound, TooManyRuns
+from .runner import ClientFactory, Conflict, Hub, NotFound, Run, TooManyRuns
 from .schema import (
     MAX_BODY_BYTES,
     ValidationError,
@@ -46,6 +48,15 @@ CSP = (
 _RUN_ID = re.compile(r"^[0-9a-f]{16}$")
 _HISTORY_PATH = re.compile(r"^/api/history/([0-9a-f]{16})$")
 _RUN_PATH = re.compile(r"^/api/runs/([0-9a-f]{16})(?:/([a-z.]+))?$")
+MAX_STREAMS = 4  # open approval streams at once; each holds one thread
+STREAM_MAX_S = 60.0  # a stream ends after this long and the page reconnects
+STREAM_TICK_S = 0.1
+STREAM_HEARTBEAT_S = 5.0
+
+
+def _sse(data: str, event: str | None = None) -> bytes:
+    head = f"event: {event}\n" if event else ""
+    return f"{head}data: {data}\n\n".encode()
 
 
 class HubServer(ThreadingHTTPServer):
@@ -62,6 +73,19 @@ class HubServer(ThreadingHTTPServer):
         self.token = secrets.token_urlsafe(24)
         self.allowed_hosts = frozenset({f"127.0.0.1:{self.port}", f"localhost:{self.port}"})
         self.allowed_origins = frozenset(f"http://{h}" for h in self.allowed_hosts)
+        self._streams = 0
+        self._streams_lock = threading.Lock()
+
+    def open_stream(self) -> bool:
+        with self._streams_lock:
+            if self._streams >= MAX_STREAMS:
+                return False
+            self._streams += 1
+            return True
+
+    def close_stream(self) -> None:
+        with self._streams_lock:
+            self._streams -= 1
 
     @property
     def port(self) -> int:
@@ -85,15 +109,58 @@ class _Handler(BaseHTTPRequestHandler):
         self.send_response(status)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
+        self._security_headers()
+        for key, value in (extra or {}).items():
+            self.send_header(key, value)
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _security_headers(self) -> None:
         self.send_header("Content-Security-Policy", CSP)
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("X-Frame-Options", "DENY")
         self.send_header("Referrer-Policy", "no-referrer")
         self.send_header("Cache-Control", "no-store")
-        for key, value in (extra or {}).items():
-            self.send_header(key, value)
-        self.end_headers()
-        self.wfile.write(body)
+
+    def _stream(self, run: Run) -> None:
+        """Server-sent events with the run's status and pending approval, until it ends.
+
+        Same guards as every /api route (the page reads it with fetch so the token header applies).
+        Bounded: a cap on open streams, a lifetime, and a write that fails ends the thread.
+        """
+        if not self.server.open_stream():
+            raise TooManyRuns("too many open streams")
+        try:
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+            self.send_header("Connection", "close")
+            self._security_headers()
+            self.end_headers()
+            self.close_connection = True
+            deadline = time.monotonic() + STREAM_MAX_S
+            last = None
+            last_sent = time.monotonic()
+            while True:
+                view = run.stream_view()
+                text = json.dumps(view, allow_nan=False)
+                now = time.monotonic()
+                if text != last:
+                    self.wfile.write(_sse(text))
+                    last, last_sent = text, now
+                elif now - last_sent >= STREAM_HEARTBEAT_S:
+                    self.wfile.write(b": ping\n\n")
+                    last_sent = now
+                if view["status"] != "running":
+                    self.wfile.write(_sse('{"reason": "finished"}', "end"))
+                    return
+                if now >= deadline:
+                    self.wfile.write(_sse('{"reason": "timeout"}', "end"))
+                    return
+                time.sleep(STREAM_TICK_S)
+        except OSError:
+            return  # the client went away or stopped reading
+        finally:
+            self.server.close_stream()
 
     def _json(self, status: int, payload: object) -> None:
         body = json.dumps(payload, allow_nan=False).encode("utf-8")
@@ -201,6 +268,13 @@ class _Handler(BaseHTTPRequestHandler):
             if playground and not req["text"]:
                 raise ValidationError({"text": "is required"})
             self._json(202, {"run_id": hub.start(req, playground=playground).run_id})
+        elif method == "POST" and path == "/api/intake/alertmanager":
+            body = self._body()
+            if body is None:
+                return
+            self._json(201, {"alerts": hub.add_intake(body)})
+        elif method == "GET" and path == "/api/metrics":
+            self._json(200, hub.metrics())
         elif method == "GET" and path == "/api/history":
             self._json(200, hub.history())
         elif method == "GET" and path == "/api/audit":
@@ -249,6 +323,8 @@ class _Handler(BaseHTTPRequestHandler):
                 return
             outcome = hub.approve(run_id, body.get("nonce"), body.get("decision"))
             self._json(200 if outcome == "accepted" else 409, {"outcome": outcome})
+        elif method == "GET" and action == "stream":
+            self._stream(hub.get(run_id))
         elif method == "GET" and action == "similar":
             self._json(200, hub.similar(run_id))
         elif method == "POST" and action == "publish":

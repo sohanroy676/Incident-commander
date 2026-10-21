@@ -42,6 +42,12 @@ TIME_MAX = T0 + 400 * DAY_S
 LEVEL_MAX = 1_000_000.0
 SEVERITIES = ("low", "medium", "high", "critical")
 METRICS = ("latency_ms", "error_rate")
+MAX_INTAKE = 20  # Alertmanager alerts held at once, beside the uploads
+MAX_INTAKE_PER_POST = 10
+MAX_LABELS = 20
+MAX_LABEL_CHARS = 100
+MAX_ANNOTATIONS = 10
+INTAKE_SEVERITY = "medium"  # fixed: no label sets it, and no decision reads it
 
 _NAME = re.compile(r"^[a-z][a-z0-9-]{1,39}$")
 _ALERT_ID = re.compile(r"^[A-Za-z0-9-]{1,32}$")
@@ -245,6 +251,139 @@ def validate_upload(
     )
 
 
+@dataclass(frozen=True)
+class IntakeDraft:
+    """One accepted Alertmanager alert. Labels and annotations are display text only."""
+
+    service: str
+    metric: str
+    summary: str
+    labels: tuple[tuple[str, str], ...]
+    annotations: tuple[tuple[str, str], ...]
+    starts_at: str
+    fingerprint: str
+
+
+_LABEL_KEY = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,39}$")
+_FINGERPRINT = re.compile(r"^[A-Za-z0-9]{1,64}$")
+_AM_TOP = (
+    "version",
+    "groupKey",
+    "truncatedAlerts",
+    "status",
+    "receiver",
+    "groupLabels",
+    "commonLabels",
+    "commonAnnotations",
+    "externalURL",
+    "alerts",
+)
+_AM_ALERT = ("status", "labels", "annotations", "startsAt", "endsAt", "generatorURL", "fingerprint")
+
+
+def _text_map(
+    c: _Collector, path: str, raw: object, max_items: int, max_value: int
+) -> dict[str, str]:
+    """A label or annotation map: bounded count, plain keys, printable values (may be empty)."""
+    if not isinstance(raw, dict) or len(raw) > max_items:
+        c.fail(path, f"must be an object of at most {max_items} entries")
+        return {}
+    out: dict[str, str] = {}
+    for key, value in raw.items():
+        if not _LABEL_KEY.match(key):
+            c.fail(f"{path}.{key[:40]}", "key must be letters, digits, underscores")
+        elif not isinstance(value, str) or len(value) > max_value or not value.isprintable():
+            c.fail(f"{path}.{key}", f"must be printable text of at most {max_value} characters")
+        else:
+            out[key] = value
+    return out
+
+
+def _plain(c: _Collector, path: str, raw: object, limit: int = 200) -> str:
+    if raw is None:
+        return ""
+    if not isinstance(raw, str) or len(raw) > limit or not raw.isprintable():
+        c.fail(path, f"must be printable text of at most {limit} characters")
+        return ""
+    return raw
+
+
+def validate_alertmanager(
+    raw: object, reference: Callable[[str], Alert | None]
+) -> tuple[IntakeDraft, ...]:
+    """Alertmanager webhook v4 -> drafts, or ValidationError.
+
+    Labels are untrusted text. The only label read as data is `service` (and an optional `metric`),
+    and only as an exact-match key into services the hub already holds; severity is never taken
+    from a label. `reference(service)` gives an existing alert on that service or None.
+    """
+    c = _Collector()
+    top = c.obj("payload", raw, _AM_TOP)
+    if top.get("version") != "4":
+        c.fail("version", 'must be "4"')
+    if top.get("status", "firing") not in ("firing", "resolved"):
+        c.fail("status", "must be firing or resolved")
+    for key in ("groupKey", "receiver", "externalURL"):
+        _plain(c, key, top.get(key))
+    for key, limit in (("groupLabels", MAX_LABELS), ("commonLabels", MAX_LABELS)):
+        _text_map(c, key, top.get(key, {}), limit, MAX_LABEL_CHARS)
+    _text_map(
+        c, "commonAnnotations", top.get("commonAnnotations", {}), MAX_ANNOTATIONS, MAX_SUMMARY_CHARS
+    )
+    if "truncatedAlerts" in top:
+        c.num("truncatedAlerts", top["truncatedAlerts"], 0, 1_000_000)
+    alerts = top.get("alerts")
+    if not isinstance(alerts, list) or not 1 <= len(alerts) <= MAX_INTAKE_PER_POST:
+        c.fail("alerts", f"must be a list of 1 to {MAX_INTAKE_PER_POST} alerts")
+        alerts = []
+    drafts = []
+    for i, item in enumerate(alerts):
+        path = f"alerts[{i}]"
+        a = c.obj(path, item, _AM_ALERT)
+        if a.get("status", "firing") != "firing":
+            c.fail(f"{path}.status", "only firing alerts are accepted")
+        labels = _text_map(c, f"{path}.labels", a.get("labels"), MAX_LABELS, MAX_LABEL_CHARS)
+        notes = _text_map(
+            c, f"{path}.annotations", a.get("annotations", {}), MAX_ANNOTATIONS, MAX_SUMMARY_CHARS
+        )
+        starts_at = _plain(c, f"{path}.startsAt", a.get("startsAt"), 40)
+        _plain(c, f"{path}.endsAt", a.get("endsAt"), 40)
+        _plain(c, f"{path}.generatorURL", a.get("generatorURL"))
+        fingerprint = a.get("fingerprint", "")
+        if fingerprint != "" and not (
+            isinstance(fingerprint, str) and _FINGERPRINT.match(fingerprint)
+        ):
+            c.fail(f"{path}.fingerprint", "must be letters and digits, at most 64 characters")
+            fingerprint = ""
+        service = labels.get("service", "")
+        ref = reference(service) if _NAME.match(service) else None
+        if ref is None:
+            c.fail(f"{path}.labels.service", "must name a service this hub already holds")
+            continue
+        metric = labels.get("metric", ref.metric)
+        if metric not in METRICS:
+            c.fail(f"{path}.labels.metric", f"must be one of {', '.join(METRICS)}")
+        summary = notes.get("summary") or notes.get("description")
+        if summary is None:
+            summary = f"Alertmanager alert on {service}"
+        elif not summary.strip():
+            c.fail(f"{path}.annotations", "summary must not be blank")
+        drafts.append(
+            IntakeDraft(
+                service,
+                metric,
+                summary,
+                tuple(labels.items()),
+                tuple(notes.items()),
+                starts_at,
+                str(fingerprint),
+            )
+        )
+    if c.errors:
+        raise ValidationError(c.errors)
+    return tuple(drafts)
+
+
 def _deployments(c: _Collector, raw: object) -> tuple[tuple[float, str], ...]:
     if not isinstance(raw, list) or len(raw) > MAX_DEPLOYMENTS:
         c.fail("service.deployments", f"must be a list of at most {MAX_DEPLOYMENTS} items")
@@ -420,13 +559,17 @@ def _planted(
 
 
 __all__ = [
+    "INTAKE_SEVERITY",
     "MAX_BODY_BYTES",
+    "MAX_INTAKE",
     "MAX_UPLOADS",
     "WHAT_IFS",
+    "IntakeDraft",
     "Upload",
     "ValidationError",
     "parse_diff_request",
     "parse_json",
+    "validate_alertmanager",
     "validate_evaluate_request",
     "validate_explain_request",
     "validate_run_request",
