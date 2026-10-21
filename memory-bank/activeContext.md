@@ -63,3 +63,6 @@ P1 and P3 approved. `incident_commander/` is no longer frozen, but only `command
 
 ## v3.1 hub (2026-10-21)
 Branches `v3.1-live-progress` (committed c1133c6) and `v3.1-runbook-editor` (stacked on it) are ready for review; nothing merged, pushed or tagged. Core is untouched (`git diff v3.0 -- incident_commander/` empty). Gotchas: a heredoc-written Python string with backslash escapes corrupts source (use a script file written with the Write tool); PUT on a known route is 405 not 404; a failed validation POST logs a 422 console error in the browser (expected). Next: merge both with --no-ff after review, tag v3.1 only on approval, then optional item 39/40 (need P5).
+
+## State after v3.1 (2026-10-21)
+Released: v3.0 (commander hooks) and v3.1 (hub live progress, runbook editor), tags pushed, CI green. Only local branch: main (plus origin/submission for the course submission, keep). `git diff v3.0 -- incident_commander/` must stay empty (X1). Open: P4 Pages demo and P5 new predicates (items 39, 40) and P6 license are still pending owner approval; demo video; hosted live trace; CHANGELOG generator. Superseded: the earlier 'v3.1 hub' note above describes the branches before merge. Ask before pushing, tagging or deleting branches; never commit to main.
