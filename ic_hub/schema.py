@@ -24,7 +24,8 @@ from incident_commander.fixtures.services import (
     ramp,
     step,
 )
-from incident_commander.types import Alert
+from incident_commander.predicates import PREDICATES
+from incident_commander.types import Alert, Runbook
 
 MAX_BODY_BYTES = 1_048_576
 MAX_UPLOADS = 20
@@ -47,11 +48,33 @@ MAX_INTAKE_PER_POST = 10
 MAX_LABELS = 20
 MAX_LABEL_CHARS = 100
 MAX_ANNOTATIONS = 10
+MAX_RUNBOOKS = 8
+MAX_SIGNATURE = 6
+MAX_FOLLOW_UPS = 3
+MAX_TITLE_CHARS = 80
+MAX_RUNBOOK_TEXT_CHARS = 1000
+MAX_FOLLOW_UP_CHARS = 200
 INTAKE_SEVERITY = "medium"  # fixed: no label sets it, and no decision reads it
 
 _NAME = re.compile(r"^[a-z][a-z0-9-]{1,39}$")
 _ALERT_ID = re.compile(r"^[A-Za-z0-9-]{1,32}$")
 _VERSION = re.compile(r"^[A-Za-z0-9._-]{1,32}$")
+_RUNBOOK_ID = re.compile(r"^[A-Za-z0-9-]{1,20}$")
+_LINE_BREAKS = re.compile(r"[\r\n\t]")
+_SET_ID = re.compile(r"^[0-9a-f]{16}$")
+
+# One line per predicate for the editor's catalog; a test keeps these keys equal to PREDICATES.
+PREDICATE_HELP = {
+    "latency_elevated": "recent latency is at least 2x its baseline",
+    "latency_normal": "recent latency is within 1.25x of its baseline",
+    "latency_step_change": "latency jumped in one step and was normal before",
+    "latency_gradual_trend": "latency climbs steadily with no single jump",
+    "error_normal": "error rate is at most 2x its baseline",
+    "error_elevated": "error rate is at least 3x its baseline",
+    "deploy_in_window": "a deployment happened in the 30 minutes before the alert",
+    "no_deploy_in_window": "no deployment in the 30 minutes before the alert",
+    "dependency_unhealthy": "a dependency has elevated latency or errors",
+}
 
 BUILTIN_SERVICES = frozenset({*SERVICES, *GOLDEN_SERVICES})
 BUILTIN_ALERTS = frozenset({*ALERTS, *GOLDEN_ALERTS})
@@ -428,6 +451,73 @@ def _effects(c: _Collector, raw: object) -> dict[str, dict[str, float]]:
     return out
 
 
+def validate_runbooks(raw: object) -> tuple[Runbook, ...]:
+    """A runbook set for a run: {"runbooks": [...]} -> Runbooks, or ValidationError per field.
+
+    A signature must be non-empty (an empty one would be confirmed at once) and use only known
+    predicate ids (an unknown one would crash the investigator). The tier is never an input: it
+    comes from the action alone, so a custom runbook cannot lower the approval requirement.
+    """
+    c = _Collector()
+    top = c.obj("request", raw, ("runbooks",))
+    items = top.get("runbooks")
+    if not isinstance(items, list) or not 1 <= len(items) <= MAX_RUNBOOKS:
+        c.fail("runbooks", f"must be a list of 1 to {MAX_RUNBOOKS} runbooks")
+        items = []
+    out: list[Runbook] = []
+    seen: set[str] = set()
+    for i, item in enumerate(items):
+        path = f"runbooks[{i}]"
+        rb = c.obj(path, item, ("runbook_id", "title", "text", "signature", "action", "follow_ups"))
+        rid = c.text(
+            f"{path}.runbook_id",
+            rb.get("runbook_id"),
+            _RUNBOOK_ID,
+            "1-20 letters, digits or dashes",
+        )
+        if rid and rid in seen:
+            c.fail(f"{path}.runbook_id", "must be unique in the set")
+        seen.add(rid)
+        title = c.free_text(f"{path}.title", rb.get("title"), MAX_TITLE_CHARS)
+        text = rb.get("text")
+        if isinstance(
+            text, str
+        ):  # the corpus text has line breaks; other control characters stay out
+            c.free_text(f"{path}.text", _LINE_BREAKS.sub(" ", text), MAX_RUNBOOK_TEXT_CHARS)
+        else:
+            c.fail(f"{path}.text", "must be a string")
+        action = rb.get("action")
+        if not isinstance(action, str) or action not in ACTION_PROPERTIES:
+            c.fail(f"{path}.action", f"must be one of {', '.join(ACTION_PROPERTIES)}")
+        signature = _signature(c, f"{path}.signature", rb.get("signature"))
+        follow_ups = _follow_ups(c, f"{path}.follow_ups", rb.get("follow_ups", []))
+        out.append(Runbook(rid, title, str(text), signature, str(action), follow_ups))
+    if c.errors:
+        raise ValidationError(c.errors)
+    return tuple(out)
+
+
+def _signature(c: _Collector, path: str, raw: object) -> tuple[str, ...]:
+    if not isinstance(raw, list) or not 1 <= len(raw) <= MAX_SIGNATURE:
+        c.fail(path, f"must be a list of 1 to {MAX_SIGNATURE} predicate ids")
+        return ()
+    ids = [p for p in raw if isinstance(p, str) and p in PREDICATES]
+    if len(ids) != len(raw):
+        c.fail(path, f"must only use these predicates: {', '.join(PREDICATES)}")
+    elif len(set(ids)) != len(ids):
+        c.fail(path, "must not repeat a predicate")
+    return tuple(ids)
+
+
+def _follow_ups(c: _Collector, path: str, raw: object) -> tuple[str, ...]:
+    if not isinstance(raw, list) or len(raw) > MAX_FOLLOW_UPS:
+        c.fail(path, f"must be a list of at most {MAX_FOLLOW_UPS} strings")
+        return ()
+    return tuple(
+        c.free_text(f"{path}[{i}]", item, MAX_FOLLOW_UP_CHARS) for i, item in enumerate(raw)
+    )
+
+
 def validate_run_request(
     raw: object, known_alerts: frozenset[str], known_services: Callable[[str], bool]
 ) -> dict[str, object]:
@@ -436,7 +526,16 @@ def validate_run_request(
     req = c.obj(
         "request",
         raw,
-        ("alert_id", "mode", "fix_outcome", "deadline_s", "planted_logs", "text", "what_if"),
+        (
+            "alert_id",
+            "mode",
+            "fix_outcome",
+            "deadline_s",
+            "planted_logs",
+            "text",
+            "what_if",
+            "runbook_set",
+        ),
     )
     alert_id = req.get("alert_id")
     if not isinstance(alert_id, str) or alert_id not in known_alerts:
@@ -455,6 +554,9 @@ def validate_run_request(
     text = req.get("text")
     if text is not None:
         text = c.free_text("text", text, MAX_PLANTED_CHARS)
+    runbook_set = req.get("runbook_set")
+    if runbook_set is not None:
+        runbook_set = c.text("runbook_set", runbook_set, _SET_ID, "a runbook set id")
     if c.errors:
         raise ValidationError(c.errors)
     return {
@@ -465,6 +567,7 @@ def validate_run_request(
         "planted_logs": planted,
         "text": text,
         "what_if": what_if,
+        "runbook_set": runbook_set,
     }
 
 
@@ -562,7 +665,9 @@ __all__ = [
     "INTAKE_SEVERITY",
     "MAX_BODY_BYTES",
     "MAX_INTAKE",
+    "MAX_RUNBOOKS",
     "MAX_UPLOADS",
+    "PREDICATE_HELP",
     "WHAT_IFS",
     "IntakeDraft",
     "Upload",
@@ -573,5 +678,6 @@ __all__ = [
     "validate_evaluate_request",
     "validate_explain_request",
     "validate_run_request",
+    "validate_runbooks",
     "validate_upload",
 ]

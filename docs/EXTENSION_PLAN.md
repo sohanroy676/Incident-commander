@@ -133,7 +133,7 @@ Starts only after the course submission and viva and after owner approval.
 | 35 | P1 | `Commander.run(..., runbooks=None)` passed into `investigate` and used at `commander.py:207` and `:299`, defaulting to `RUNBOOKS` | plan, narrowed |
 | 36 | P1 | Optional `on_event` callback on `Trace.emit` (`commander.py:98`) | new |
 | 37 | P1 | Test that default behaviour equals v1.0; G1-G6 pass; DECISION lines identical; ADR with the diff. **[NEW] X1 is re-baselined** (P3): `test_release.py:41` otherwise fails by design. Add a `v2.x` tag as the new baseline and keep the v1.0-to-baseline diff documented | plan, [CHANGED] |
-| 38 | P1 | Runbook editor: nine predicates, four actions, validate, re-index `HybridRanker` (`retrieval.py:95`) | plan, constrained |
+| 38 | P1 | Runbook editor: nine predicates, four actions, validate, re-index `HybridRanker` (`retrieval.py:95`) | **done (v3.1, hub only)**, see THRESHOLDS.md |
 | 39 | P2 | Seeded scenario generator as a **robustness check**: confusion matrix over worlds built with the same helpers as the fixtures. It measures consistency, not real-world accuracy, and is labelled so. It is not a headline resume number. [PENDING] P2 (random fault injection is on the out-of-scope list) | plan, [CHANGED] |
 | 40 | P2 | New predicates. Edits the frozen registry and risks `test_invariants`, `test_canaries` and the golden set | new, [PENDING] P5 |
 

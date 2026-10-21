@@ -209,7 +209,7 @@ trace for the report. Do not edit a trace by hand.
 
 ## What comes next
 
-The v2.3 hub extras (charts, what-if toggles, evaluate view, run history, audit log, Alertmanager-shaped intake, metrics strip,
+The v3.1 hub adds a live trace while a run is in progress and a runbook editor (custom runbook sets built from the nine predicates and four actions; the approval tier still comes from the action alone). The v2.3 hub extras (charts, what-if toggles, evaluate view, run history, audit log, Alertmanager-shaped intake, metrics strip,
 approval stream, dark mode and shortcuts) are built; a dev-only browser check is `python scripts/playwright_smoke.py`
 (needs `pip install playwright` and `playwright install chromium`, not in CI). The hero GIF is regenerated with `python scripts/record_hero_gif.py` (also needs `pip install pillow`). The pluggable core (v3.0, which needs a separate unfreeze approval) is proposed in
 [`docs/EXTENSION_PLAN.md`](docs/EXTENSION_PLAN.md) and [`ROADMAP.md`](ROADMAP.md). v3.0 (P1, P3) is approved and touches `commander.py` only; the graded code for submission is on branch `submission`.

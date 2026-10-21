@@ -20,7 +20,7 @@ from urllib.parse import urlsplit
 
 from incident_commander.postmortem import render
 
-from .runner import ClientFactory, Conflict, Hub, NotFound, Run, TooManyRuns
+from .runner import ClientFactory, Conflict, Hub, NotFound, Run, TooManyRuns, builtin_catalog
 from .schema import (
     MAX_BODY_BYTES,
     ValidationError,
@@ -273,6 +273,13 @@ class _Handler(BaseHTTPRequestHandler):
             if playground and not req["text"]:
                 raise ValidationError({"text": "is required"})
             self._json(202, {"run_id": hub.start(req, playground=playground).run_id})
+        elif method == "GET" and path == "/api/runbooks/builtin":
+            self._json(200, builtin_catalog())
+        elif method == "POST" and path == "/api/runbooks":
+            body = self._body()
+            if body is None:
+                return
+            self._json(201, hub.add_runbooks(body))
         elif method == "POST" and path == "/api/intake/alertmanager":
             body = self._body()
             if body is None:
