@@ -38,6 +38,13 @@ class TestSuccess(unittest.TestCase):
             LLMClient(fake.url, "m", SECRET, timeout_s=5).chat(MESSAGES)
         self.assertEqual(fake.requests[0]["headers"]["Authorization"], f"Bearer {SECRET}")
 
+    def test_user_agent_is_not_the_urllib_default(self):
+        with FakeLLM([(200, chat_body("x"), 0)]) as fake:
+            LLMClient(fake.url, "m", None, timeout_s=5).chat(MESSAGES)
+        headers = {k.lower(): v for k, v in fake.requests[0]["headers"].items()}
+        self.assertNotIn("python-urllib", headers["user-agent"].lower())
+        self.assertTrue(headers["user-agent"])
+
 
 class TestNeverRaises(unittest.TestCase):
     def failure(self, replies, timeout_s=5.0, key=None):
