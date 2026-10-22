@@ -47,10 +47,13 @@ class TestUnavailableX2(unittest.TestCase):
         self.assertEqual(self.off.stdout.splitlines()[-1], "extension: llm=off approver=scripted")
 
     def test_no_server_and_no_model_configured_also_falls_back(self):
-        p = run("ic_plus", "run", "ALRT-9001", "--llm", "local", "--llm-url", unused_url())
-        self.assertEqual(p.returncode, 0, p.stderr)
-        self.assertIn(UNAVAILABLE_LINE, p.stdout)
-        self.assertIn("missing model", p.stderr)
+        # in-process with an empty dotenv: a developer's real .env must not leak into the test
+        code, out, err = in_process(
+            "run", "ALRT-9001", "--llm", "local", "--llm-url", unused_url(), env={}
+        )
+        self.assertEqual(code, 0, err)
+        self.assertIn(UNAVAILABLE_LINE, out)
+        self.assertIn("missing model", err)
 
 
 class TestWithAServer(unittest.TestCase):

@@ -72,3 +72,6 @@ P5 (ADR-0006) and P6 (MIT) are done; items 39 and 40 are merged to main. Tag `v3
 
 ## State after v3.4 demo runbook (2026-10-21)
 Demo runbook set is in `docs/examples/`. The five merged local branches were already gone; local branches are main and submission (keep). Open: hosted-LLM live trace (needs provider and model in `.env`; free-tier limits unchecked), demo video, P4 Pages demo, viva rehearsal. Ask before pushing or tagging.
+
+## State after Groq fix (2026-10-22)
+Hosted LLM works with Groq. Model facts (checked against the account's live `/models`, not the docs page, which was stale): `llama-3.3-70b-versatile` is NOT available; `openai/gpt-oss-120b` and `qwen/qwen3.8-27b` work for all roles; `openai/gpt-oss-20b` returns HTTP 400 on the narrator prompt. Gotchas: urllib's default User-Agent is blocked (403) by Groq; the narrator fell back once on ALRT-9103 (cause unknown); HTTP errors show only the status code; `envfile.py` does not strip a UTF-8 BOM. Tests must not depend on the real `.env` (patch `load_env`). Free-tier limits unchecked. Open: demo video, P4 Pages demo, viva rehearsal. Ask before pushing or tagging.

@@ -13,6 +13,7 @@ from dataclasses import dataclass
 
 DEFAULT_TIMEOUT_S = 20.0
 MAX_REPLY_BYTES = 1_000_000
+USER_AGENT = "incident-commander-ic-plus/1.0"
 
 
 @dataclass(frozen=True)
@@ -51,7 +52,8 @@ class LLMClient:
         payload: dict = {"model": self.model, "messages": messages, "temperature": 0}
         if json_mode:
             payload["response_format"] = {"type": "json_object"}
-        headers = {"Content-Type": "application/json"}
+        # Hosted providers behind Cloudflare (Groq) reject the default Python-urllib agent with 403.
+        headers = {"Content-Type": "application/json", "User-Agent": USER_AGENT}
         if self._key:
             headers["Authorization"] = f"Bearer {self._key}"
         request = urllib.request.Request(
