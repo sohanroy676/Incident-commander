@@ -102,7 +102,7 @@ jobs:
           coverage run -p -m unittest -v $mods
 
       - name: Upload coverage data
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-${{ matrix.name }}
           path: .coverage.*
